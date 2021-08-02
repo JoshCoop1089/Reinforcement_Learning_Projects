@@ -1,0 +1,11 @@
+if you can show that an assumed square leads to another clue 
+to be a contradiction 
+    a) num mines  > known mines + hidden neighbors
+    b)
+    num neighbors - num safe - known mines > num mines
+    
+    clue  = km + hn --> hn all mine
+    
+    clue - km
+    
+    
