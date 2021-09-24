@@ -32,10 +32,24 @@ Things to think about:
     Do we update the network using a batch pulled from a fully finished board 
         ie the log of all (state -> new_q_board) choices for a specific starting board
         following some greedy policy for choosing next state based on argmax(new_q_board)
-    
+
+     
+General Flow of state transitions and network updates:
+    1)  Network.predict(State 1) -> q1
+    2)  get_greedy_next_action(q1, state1) gives next action from unclicked points in state 1
+    3)  State1 with next action is now State 2
+    4)  Network.predict(State 2) -> q2
+    5)  q_val_upate(q1, q2) outputs q1_update
+    6)  put (state1, q1_update) into episode buffer
+    7)  state 1 <- state 2
+    8)  Return to step 1 until end of episode (all spaces clicked)
+    9)  Full episode of (state,q_updated) pairs is randomly partitioned, and a batch of pairs is used to update the network.
+    10) Generate new board and return to step 1
+
 """
 import random
 import numpy as np
+import tensorflow as tf
 
 def make_board(dimension, num_mines):
     """
@@ -100,6 +114,10 @@ def print_board(board, full_print = False):
             print(str(i) + " |", end = ' ')
 
         for j in range(dimension):
+            # Will need to update this for flag representations
+                # correct flag = 'C'
+                # incorrect flag = 'F'
+            
             # Space isn't clicked
             if board[0][i][j] != 1 and full_print == False:
                 print("-", end = ' ')
@@ -156,9 +174,10 @@ def make_reward_board(board):
     
     return reward_board
 
-def q_value_update(old_q_board, reward_board, learning_param):
+def q_value_update(state1_q_board, state2_q_board, reward_board, learning_param):
     """
-    old_q_board: holds the q values for a specific state of the board
+    state1_q_board: holds the q values for a specific state of the board
+    state2_q_board: holds the q values for the next state of the board
     reward_board: gives the rewards for every space in the board state
     
     Thoughts:
@@ -174,13 +193,75 @@ def q_value_update(old_q_board, reward_board, learning_param):
     # no discounting?
     gamma = 1
     
-    new_q_board = np.zeros(old_q_board.shape)
-    
-    q_new = reward_board + gamma * np.amax(old_q_board)
-    new_q_board = old_q_board + learning_param * (q_new - old_q_board)
-    return new_q_board
+    update_q_board = np.zeros(state1_q_board.shape)    
+    q_new = reward_board + gamma * np.amax(state2_q_board)
+    update_q_board = state1_q_board + learning_param * (q_new - state1_q_board)
+    return update_q_board
 
+def get_greedy_next_action(q_board, board):
+    """
+    The zipping on list_of_locs might need to be changed when flag functionality is added?
+    """
+    action_is_flag = False
+    
+    # Find the max q_value on the board
+    q_max = np.amax(q_board)
+    
+    # Identify all locations which have that q_value
+    locs = np.where(q_board == q_max)
+    list_of_locs = list(zip(locs[0], locs[1]))
+    
+    # Randomly choose from available locations (ie location hasn't been clicked/flagged)
+    avail_locs = [(i,j) for (i,j) in list_of_locs if board[0][i][j] == 1]
+    next_action_loc = (0,0)
+    game_over = False
+    if len(avail_locs) != 0:
+        next_action_loc = random.choice(avail_locs)
+    else:
+        game_over = True
         
+    return next_action_loc, action_is_flag, game_over
+
+def get_next_state(board, location, flag = False):
+    x,y = location
+    if not flag:
+        board[0][x][y] = 1
+    else:
+        board[0][x][y] = -1
+    return board
+
+def update_network_from_one_episode(dimension, num_mines, learning_param, batch_percent, q_network):
+    """
+    Run through a single game starting with a new board.
+    
+    Choose batch_percent of the state transitions to use to update the q_network
+    """
+    
+    history = {}
+    
+    state_t1 = make_board(dimension, num_mines)
+    reward_board = make_reward_board(state_t1)
+    state_t1_q_board = q_network.predict(state_t1, flag = False)
+    next_action_loc, _, game_over = get_greedy_next_action(state_t1_q_board, state_t1)
+    
+    while not game_over:
+        state_t2 = get_next_state(state_t1, next_action_loc, flag = False)
+        state_t2_q_board = q_network.predict(state_t2)
+        state_t1_q_update = q_value_update(state_t1_q_board, state_t2_q_board, reward_board, learning_param)
+        history[state_t1] = state_t1_q_update
+        state_t1 = state_t2
+        state_t1_q_board = q_network.predict(state_t1)
+        next_action_loc, _, game_over = get_greedy_next_action(state_t1_q_board, state_t1)
+        
+    # Select a random number of states from history, and update network
+    batch = random.sample(history.items(), len(history)*batch_percent)
+    states = np.asarray([x for (x,y) in batch])
+    q_boards = np.asarray([y for (x,y) in batch])
+    q_network.fit(states, q_boards)
+    return q_network
+    
+        
+
 
 dimension = 5
 num_mines = 10
@@ -200,7 +281,10 @@ print(new_q)
 # new_q = q_value_update(new_q, rewards, learning_param)
 # print(new_q)
 
-print("\nFirst action taken")
-board[0][3][4] = 1
-print_board(board, full_print = False)
+locs = get_greedy_next_action(new_q, board)
+print(locs)
+
+# print("\nFirst action taken")
+# board[0][3][4] = 1
+# print_board(board, full_print = False)
 
