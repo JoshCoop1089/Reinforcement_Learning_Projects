@@ -1,5 +1,12 @@
 # -*- coding: utf-8 -*-
 """
+Created on Sat Sep 25 19:30:28 2021
+
+@author: joshc
+"""
+
+# -*- coding: utf-8 -*-
+"""
 Created on Thu Sep 23 13:23:10 2021
 
 @author: joshc
@@ -47,21 +54,21 @@ General Flow of state transitions and network updates:
     10) Generate new board and return to step 1
 
 """
-import random
+import random, copy
 import numpy as np
 import tensorflow as tf
 
-def make_board(dimension, num_mines):
+def make_board(dimension, num_mines, testing = False):
     """
     Create a dimXdim board with a random assortment of mines
     
     Data Format is a 3xdimXdim np array
-    board[0][x][y] -> Clicked/Flagged Layer (0 for unclicked, 1 for clicked, eventually -1 for flag)
-    board[1][x][y] -> Mine Layer (0 for no mine, 1 for mine) 
-    board[2][x][y] -> Clue Layer (-1 if mine is present, otherwise 1-8  for num of neighbor mines)
+    board[x][y][0] -> Clicked/Flagged Layer (0 for unclicked, 1 for clicked, eventually -1 for flag)
+    board[x][y][1] -> Mine Layer (0 for no mine, 1 for mine) 
+    board[x][y][2] -> Clue Layer (-1 if mine is present, otherwise 1-8  for num of neighbor mines)
                                       (but scaled down to [0.125,1] cause TF no like big nums)
     """
-    board = np.zeros((3,dimension,dimension))
+    board = np.zeros((dimension,dimension,3))
     
     # Generate mines and place on board
     mine_locs = set()
@@ -71,8 +78,8 @@ def make_board(dimension, num_mines):
         mine_locs.add((i,j))
     mine_locs = list(mine_locs)
     for (x,y) in mine_locs:
-        board[1][x][y] = 1
-        board[2][x][y] = -1
+        board[x][y][1] = 1
+        board[x][y][2] = -1
         
         
     # Generate clue values
@@ -89,10 +96,12 @@ def make_board(dimension, num_mines):
                          (i+1, j-1), (i+1, j),(i+1, j+1)]
             for (x,y) in neighbors:
                 if 0<=x<dimension and 0<=y<dimension:
-                    if board[1][x][y] == 1:
-                        board[2][i][j] += 0.125
-    
-    return board
+                    if board[x][y][1] == 1:
+                        board[i][j][2] += 0.125
+    if testing:
+        return board, mine_locs
+    else:
+        return board
 
 def print_board(board, full_print = False):
     """
@@ -119,12 +128,12 @@ def print_board(board, full_print = False):
                 # incorrect flag = 'F'
             
             # Space isn't clicked
-            if board[0][i][j] != 1 and full_print == False:
+            if board[i][j][0] != 1 and full_print == False:
                 print("-", end = ' ')
             else:
                 # Space isn't Mined
-                if board[1][i][j] != 1:
-                    print(int(8*board[2][i][j]), end = ' ')
+                if board[i][j][1] != 1:
+                    print(int(8*board[i][j][2]), end = ' ')
                 else:
                     print('M', end = ' ')
         print()
@@ -167,10 +176,14 @@ def make_reward_board(board):
     This will be more complex on future reward function versions
     See detailed notes in reward_from_action function above
     """
-    reward_board = np.zeros(board[0].shape)
+
+    reward_board = np.zeros(board.shape[0:2])
     
     # Reward for mine is -1, otherwise 0
-    reward_board = -1 * board[1]
+    for x in range(dimension):
+        for y in range(dimension):
+            reward_board[x][y] = -1 * board[x][y][1]
+
     
     return reward_board
 
@@ -203,34 +216,35 @@ def get_greedy_next_action(q_board, board):
     The zipping on list_of_locs might need to be changed when flag functionality is added?
     """
     action_is_flag = False
-    
-    # Find the max q_value on the board
-    q_max = np.amax(q_board)
-    
-    # Identify all locations which have that q_value
-    locs = np.where(q_board == q_max)
-    list_of_locs = list(zip(locs[0], locs[1]))
-    
-    # Randomly choose from available locations (ie location hasn't been clicked/flagged)
-    avail_locs = [(i,j) for (i,j) in list_of_locs if board[0][i][j] == 1]
-    next_action_loc = (0,0)
     game_over = False
-    if len(avail_locs) != 0:
-        next_action_loc = random.choice(avail_locs)
-    else:
+    next_action_loc = (0,0)
+        
+    # Get list of all available spots
+    locs = np.where(board == 0)
+    places = list(zip(locs[0], locs[1], locs[2]))
+    new = [(x,y) for (x,y,z) in places if z == 0]
+    if len(new) == 0:
         game_over = True
+        
+    # Get location of highest q in available locations
+    else:
+        q_list = [q_board[0][x][y] for (x,y) in new]
+        # print(q_list)
+        next_action_loc = new[np.argmax(q_list)]
+        # print(next_action_loc)
         
     return next_action_loc, action_is_flag, game_over
 
-def get_next_state(board, location, flag = False):
+def get_next_state(board_c, location, flag = False):
+    board = copy.deepcopy(board_c) 
     x,y = location
     if not flag:
-        board[0][x][y] = 1
+        board[x][y][0] = 1
     else:
-        board[0][x][y] = -1
+        board[x][y][0] = -1
     return board
 
-def update_network_from_one_episode(dimension, num_mines, learning_param, batch_percent, q_network):
+def update_network_from_one_episode(dimension, num_mines, learning_param, batch_fraction, q_network):
     """
     Run through a single game starting with a new board.
     
@@ -240,51 +254,130 @@ def update_network_from_one_episode(dimension, num_mines, learning_param, batch_
     history = {}
     
     state_t1 = make_board(dimension, num_mines)
+    state_counter = 0
     reward_board = make_reward_board(state_t1)
-    state_t1_q_board = q_network.predict(state_t1, flag = False)
+    state_t1_tensor = tf.convert_to_tensor(np.expand_dims(state_t1, axis=0))
+    state_t1_q_board = q_network.predict(state_t1_tensor)
     next_action_loc, _, game_over = get_greedy_next_action(state_t1_q_board, state_t1)
     
-    while not game_over:
+    while not game_over and state_counter < dimension**2:
+        # print("Going to next state")
         state_t2 = get_next_state(state_t1, next_action_loc, flag = False)
-        state_t2_q_board = q_network.predict(state_t2)
+        state_t2_tensor = tf.convert_to_tensor(np.expand_dims(state_t2, axis=0))
+        state_t2_q_board = q_network.predict(state_t2_tensor)
         state_t1_q_update = q_value_update(state_t1_q_board, state_t2_q_board, reward_board, learning_param)
-        history[state_t1] = state_t1_q_update
+        history[state_counter] = (state_t1, state_t1_q_update)
+        state_counter += 1
         state_t1 = state_t2
-        state_t1_q_board = q_network.predict(state_t1)
+        state_t1_tensor = tf.convert_to_tensor(np.expand_dims(state_t1, axis=0))
+        state_t1_q_board = q_network.predict(state_t1_tensor)
         next_action_loc, _, game_over = get_greedy_next_action(state_t1_q_board, state_t1)
         
     # Select a random number of states from history, and update network
-    batch = random.sample(history.items(), len(history)*batch_percent)
-    states = np.asarray([x for (x,y) in batch])
-    q_boards = np.asarray([y for (x,y) in batch])
-    q_network.fit(states, q_boards)
+    batch = random.sample(history.items(), (dimension**2)//batch_fraction)
+    states = []
+    labels = []
+    for k, (s,l) in batch:
+        states.append(s)
+        labels.append(l)
+    states = tf.convert_to_tensor(states)
+    labels = tf.convert_to_tensor(labels)
+    q_network.fit(states, labels)
     return q_network
     
-        
 
+# """
+# How do you start off the network?
+# Network first guess at layers:
+#     Conv2d with input shape as 3xdimxdim
+    
+#     some middle layers?
+    
+#     Final layer:
+#         Dense, with dimxdim nodes
+#         Reshape layer, turns dense into a (dim,dim), since dense turns out a 1d vector
 
-dimension = 5
-num_mines = 10
+# """
+
+dimension = 10
+num_mines = 25
 learning_param = 0.1
-board = make_board(dimension, num_mines)
-print("Full Board w/ mines")
-print_board(board, full_print = True)
-rewards = make_reward_board(board)
+batch_fraction = 4
+input_shape = (dimension, dimension, 3)
 
-old_q = np.zeros(board[0].shape)
-new_q = q_value_update(old_q, rewards, learning_param)
 
-print("Q values for state, but assumed full board reveal")
-print(new_q)
-# new_q = q_value_update(new_q, rewards, learning_param)
+q_network = tf.keras.Sequential([
+                tf.keras.layers.Conv2D(filters = 32, kernel_size = (3,3), input_shape = input_shape),
+                tf.keras.layers.Flatten(),
+                tf.keras.layers.Dense(dimension*dimension),
+                tf.keras.layers.Reshape(target_shape=(dimension, dimension))
+])
+q_network.summary()
+
+q_network.compile(optimizer='adam',
+              loss=tf.keras.losses.MeanSquaredError(),
+              metrics=['accuracy'])
+
+
+
+def init_data(dimension, num_mines):
+    state = [make_board(dimension, num_mines) for x in range(dimension**2)]
+    label = [np.zeros((dimension, dimension)) for x in range(dimension**2)]
+    states = tf.convert_to_tensor(state)
+    labels = tf.convert_to_tensor(label)
+    return states, labels
+    
+
+states, labels = init_data(dimension, num_mines)
+q_network.fit(states, labels)
+
+for _ in range(3):
+    q_network = update_network_from_one_episode(dimension, num_mines, learning_param, batch_fraction, q_network)
+
+
+
+# board, mine_locs = make_board(dimension, num_mines, testing = True)
+# print("Full Board w/ mines")
+# print_board(board, full_print = True)
+# rewards = make_reward_board(board)
+
+# s1 = np.zeros(board.shape[0:2])
+# s2 = np.zeros(board.shape[0:2])
+# new_q = q_value_update(s1, s2, rewards, learning_param)
+
+# print("Q values for state, but assumed full board reveal")
 # print(new_q)
-# new_q = q_value_update(new_q, rewards, learning_param)
-# print(new_q)
+# # # new_q = q_value_update(new_q, rewards, learning_param)
+# # # print(new_q)
+# # # new_q = q_value_update(new_q, rewards, learning_param)
+# # # print(new_q)
 
-locs = get_greedy_next_action(new_q, board)
-print(locs)
+# # ((x,y), _, _) = get_greedy_next_action(new_q, board)
+# # print(x,y)
+# # board[x][y][0] = 1
 
 # print("\nFirst action taken")
-# board[0][3][4] = 1
+# board[1][1][0] = 1
 # print_board(board, full_print = False)
 
+# # Using open spaces on board, find spot with maxQ
+# locs = np.where(board == 0)
+# places = list(zip(locs[0], locs[1], locs[2]))
+# new = [(x,y) for (x,y,z) in places if z == 0]
+# print(new)
+# q_list = [new_q[x][y] for (x,y) in new]
+# print(q_list)
+# (x,y) = new[np.argmax(q_list)]
+# print(x,y)
+
+# board[x][y][0] = 1
+
+# # Using open spaces on board, find spot with maxQ
+# locs = np.where(board == 0)
+# places = list(zip(locs[0], locs[1], locs[2]))
+# new = [(x,y) for (x,y,z) in places if z == 0]
+# print(new)
+# q_list = [new_q[x][y] for (x,y) in new]
+# print(q_list)
+# (x,y) = new[np.argmax(q_list)]
+# print(x,y)
