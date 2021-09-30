@@ -139,3 +139,24 @@ def make_reward_board(board):
         for y in range(dimension):
             reward_board[x][y] = -1 * board[x][y][1]
     return reward_board
+
+def optimal_play_percent(dimension, num_mines, score):
+    """
+    Game Type: Play through to the end
+    Avg number of safe space clicked before mine?
+        How to deal with the end of the game when there are minimal safe spaces?
+        
+    *** Find the mean time when all mines have been clicked
+            Keep track of which move clicks on a mine
+            End of the game, find the average turn
+            The higher the value, the more mines were clicked later in the game, 
+                ie, the network made safe choices earlier, and was only left with mines later
+    """
+
+    safe_spaces = dimension**2 - num_mines
+    
+    low = np.mean([x for x in range(0,safe_spaces)])
+    high = np.mean([x for x in range(safe_spaces, dimension**2)])
+    
+    percentile = (score - low)/(high - low)
+    return percentile

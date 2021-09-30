@@ -68,7 +68,7 @@ def get_next_state(board_c, location, flag = False, playing = False):
         board[x][y][0] = -1
     return board
 
-def update_network_from_one_episode(input_variables, q_network):
+def update_network_from_multiple_episodes(input_variables, q_network, num_episodes_per_update):
     """
     Run through a single game starting with a new board.
     
@@ -87,29 +87,30 @@ def update_network_from_one_episode(input_variables, q_network):
     10) Generate new board and return to step 1
     
     """
-    dimension, num_mines, learning_param, batch_fraction = input_variables
+    dimension, num_mines, learning_param, batch_fraction, num_episodes_per_update = input_variables
+    state_counter = 0
     history = {}
     
-    state_t1 = ms.make_board(dimension, num_mines)
-    state_counter = 0
-    reward_board = ms.make_reward_board(state_t1)
-    state_t1_tensor = tf.convert_to_tensor(np.expand_dims(state_t1, axis=0))
-    state_t1_q_board = q_network.predict(state_t1_tensor)
-    next_action_loc, _, game_over = get_greedy_next_action(state_t1_q_board, state_t1)
-    
-    while not game_over and state_counter < dimension**2:
-        # print("Going to next state")
-        state_t2 = get_next_state(state_t1, next_action_loc, flag = False)
-        state_t2_tensor = tf.convert_to_tensor(np.expand_dims(state_t2, axis=0))
-        state_t2_q_board = q_network.predict(state_t2_tensor)
-        state_t1_q_update = q_value_update(state_t1_q_board, state_t2_q_board, reward_board, learning_param)
-        history[state_counter] = (state_t1, state_t1_q_update)
-        state_counter += 1
-        state_t1 = state_t2
+    for _ in range(num_episodes_per_update):
+        state_t1 = ms.make_board(dimension, num_mines)
+        reward_board = ms.make_reward_board(state_t1)
         state_t1_tensor = tf.convert_to_tensor(np.expand_dims(state_t1, axis=0))
         state_t1_q_board = q_network.predict(state_t1_tensor)
         next_action_loc, _, game_over = get_greedy_next_action(state_t1_q_board, state_t1)
         
+        while not game_over and state_counter < dimension**2:
+            # print("Going to next state")
+            state_t2 = get_next_state(state_t1, next_action_loc, flag = False)
+            state_t2_tensor = tf.convert_to_tensor(np.expand_dims(state_t2, axis=0))
+            state_t2_q_board = q_network.predict(state_t2_tensor)
+            state_t1_q_update = q_value_update(state_t1_q_board, state_t2_q_board, reward_board, learning_param)
+            history[state_counter] = (state_t1, state_t1_q_update)
+            state_counter += 1
+            state_t1 = state_t2
+            state_t1_tensor = tf.convert_to_tensor(np.expand_dims(state_t1, axis=0))
+            state_t1_q_board = q_network.predict(state_t1_tensor)
+            next_action_loc, _, game_over = get_greedy_next_action(state_t1_q_board, state_t1)
+
     # Select a random number of states from history, and update network
     batch = random.sample(history.items(), (dimension**2)//batch_fraction)
     states = []
@@ -126,7 +127,7 @@ def play_one_game(dimension, num_mines, q_network):
     
     state = ms.make_board(dimension, num_mines)
     state_counter = 0
-    mine_clicked = 0
+    mine_times = []
     game_over = False 
         
     while not game_over and state_counter < dimension**2:
@@ -134,13 +135,17 @@ def play_one_game(dimension, num_mines, q_network):
         state_q_board = q_network.predict(state_tensor)
         next_action_loc, _, game_over = get_greedy_next_action(state_q_board, state)
         if not game_over:
-            ms.print_board(state)
             x,y = next_action_loc
-            print("Next Click is: ", next_action_loc)
+            # print("Next Click is: ", next_action_loc)
             if state[x][y][1] == 1:
-                mine_clicked += 1
-                print("Location is a mine")
-            print("Going to next state.")
-            print("- "*dimension)
+                mine_times.append(state_counter)
+            #     print("Location is a mine")
+            # print("Going to next state.")
+            # print("- "*dimension)
             state = get_next_state(state, next_action_loc, flag = False, playing = True)
-            state_counter += 1
+            # ms.print_board(state)
+            state_counter += 1    
+            
+    # This helps score the no flag, continued play version
+    avg_mine_click = np.mean(mine_times)
+    return avg_mine_click
