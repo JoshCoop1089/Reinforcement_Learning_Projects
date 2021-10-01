@@ -160,3 +160,7 @@ def optimal_play_percent(dimension, num_mines, score):
     
     percentile = (score - low)/(high - low)
     return percentile
+
+def avg_time_per_game(avg, new_game_time, game_num):
+    new_avg = (avg * (game_num - 1) + new_game_time)/game_num
+    return round(new_avg, 3)

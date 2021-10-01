@@ -8,6 +8,8 @@ import MineSweeper_Base_Game as ms
 import MineSweeper_TF_Functions as mstf
 
 import tensorflow as tf
+from tensorflow.keras import layers
+from tensorflow.keras import regularizers
 import numpy as np
 """
 How do you start off the network?
@@ -40,7 +42,7 @@ Things to think about:
 """
 def init_data(dimension, num_mines):
     state = [ms.make_board(dimension, num_mines) for x in range(dimension**2)]
-    label = [np.zeros((dimension, dimension)) for x in range(dimension**2)]
+    label = [np.random.rand(dimension, dimension) for x in range(dimension**2)]
     states = tf.convert_to_tensor(state)
     labels = tf.convert_to_tensor(label)
     return states, labels
@@ -54,28 +56,33 @@ First Attempt at Network Structure
     do we need multiple conv2d layers and some maxpool like in the tutorials?
     
 """
-
-def train_network(filters, kernel_size, num_training_times, input_variables):
-    
-    dimension, num_mines, learning_param, batch_fraction, num_episodes_per_update = input_variables
+def create_base_network(filters, kernel_size, input_variables, network_variables):
+        
+    dimension, num_mines, learning_param, batch_fraction = input_variables
+    dropout_coef, l2_val, dense_layer_nodes = network_variables
     input_shape = (dimension, dimension, 3)
 
     q_network = tf.keras.Sequential([
-                    tf.keras.layers.Conv2D(filters = filters, kernel_size = kernel_size, input_shape = input_shape),
-                    tf.keras.layers.Flatten(),
-                    tf.keras.layers.Dense(dimension*dimension),
-                    tf.keras.layers.Reshape(target_shape=(dimension, dimension))
+                    layers.Conv2D(filters = filters[0], kernel_size = kernel_size, activation='relu', input_shape = input_shape),
+                    layers.Conv2D(filters = filters[1], kernel_size = kernel_size, activation='relu'),
+                    layers.Flatten(),
+                    layers.Dropout(dropout_coef),
+                    layers.Dense(dense_layer_nodes[0], activation = 'relu', kernel_regularizer=regularizers.l2(l2_val)),
+                    layers.Dropout(dropout_coef),
+                    layers.Dense(dense_layer_nodes[1], activation = 'relu', kernel_regularizer=regularizers.l2(l2_val)),
+                    layers.Reshape(target_shape=(dimension, dimension))
     ])
-    q_network.summary()
+    # q_network.summary()
     
     q_network.compile(optimizer='adam',
                   loss=tf.keras.losses.MeanSquaredError(),
                   metrics=['accuracy'])
     
-    states, labels = init_data(dimension, num_mines)
-    q_network.fit(states, labels)
-    
+    # states, labels = init_data(dimension, num_mines)
+    # q_network.fit(states, labels)
+    return q_network
+
+def train_network(num_training_times, num_episodes_per_update, input_variables, q_network):
     for _ in range(num_training_times):
         q_network = mstf.update_network_from_multiple_episodes(input_variables, q_network, num_episodes_per_update)
-        
     return q_network

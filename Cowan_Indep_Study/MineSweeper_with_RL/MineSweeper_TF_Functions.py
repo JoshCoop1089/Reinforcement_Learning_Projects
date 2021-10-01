@@ -87,7 +87,7 @@ def update_network_from_multiple_episodes(input_variables, q_network, num_episod
     10) Generate new board and return to step 1
     
     """
-    dimension, num_mines, learning_param, batch_fraction, num_episodes_per_update = input_variables
+    dimension, num_mines, learning_param, batch_fraction = input_variables
     state_counter = 0
     history = {}
     
@@ -120,7 +120,7 @@ def update_network_from_multiple_episodes(input_variables, q_network, num_episod
         labels.append(l)
     states = tf.convert_to_tensor(states)
     labels = tf.convert_to_tensor(labels)
-    q_network.fit(states, labels)
+    q_network.fit(states, labels, epochs = 10)
     return q_network
 
 def play_one_game(dimension, num_mines, q_network):
@@ -149,3 +149,42 @@ def play_one_game(dimension, num_mines, q_network):
     # This helps score the no flag, continued play version
     avg_mine_click = np.mean(mine_times)
     return avg_mine_click
+
+def play_one_game_random_choice_baseline(dimension, num_mines):
+    
+    state = ms.make_board(dimension, num_mines)
+    state_counter = 0
+    mine_times = []
+    game_over = False 
+        
+    while not game_over and state_counter < dimension**2:
+        
+        # Find all available locations
+        locs = np.where(state == 0)
+        places = list(zip(locs[0], locs[1], locs[2]))
+        new = [(x,y) for (x,y,z) in places if z == 0]
+        if len(new) == 0:
+            game_over = True
+            
+        # Random Choose from list
+        next_action_loc = random.choice(new)
+        
+        if not game_over:
+            x,y = next_action_loc
+            if state[x][y][1] == 1:
+                mine_times.append(state_counter)
+            state = get_next_state(state, next_action_loc, flag = False, playing = True)
+            state_counter += 1    
+            
+    # This helps score the no flag, continued play version
+    avg_mine_click = np.mean(mine_times)
+    return avg_mine_click
+
+
+def play_one_game_no_training_baseline(dimension, num_mines, q_network):
+    """
+    Just making a nice function wrapper to make the code look more logical
+    
+    The q network passed into here would simply be an untrained version
+    """
+    return play_one_game(dimension, num_mines, q_network)
