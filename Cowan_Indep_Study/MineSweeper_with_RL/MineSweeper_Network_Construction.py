@@ -58,13 +58,13 @@ First Attempt at Network Structure
 """
 def create_base_network(filters, kernel_size, input_variables, network_variables):
         
-    dimension, num_mines, learning_param, batch_fraction = input_variables
+    dimension, num_mines, learning_param, batch_fraction, _ = input_variables
     dropout_coef, l2_val, dense_layer_nodes = network_variables
     input_shape = (dimension, dimension, 3)
 
     q_network = tf.keras.Sequential([
-                    layers.Conv2D(filters = filters[0], kernel_size = kernel_size, activation='relu', input_shape = input_shape),
-                    layers.Conv2D(filters = filters[1], kernel_size = kernel_size, activation='relu'),
+                    layers.Conv2D(filters = filters[0], kernel_size = kernel_size[0], activation='relu', input_shape = input_shape),
+                    layers.Conv2D(filters = filters[1], kernel_size = kernel_size[1], activation='relu'),
                     layers.Flatten(),
                     layers.Dropout(dropout_coef),
                     layers.Dense(dense_layer_nodes[0], activation = 'relu', kernel_regularizer=regularizers.l2(l2_val)),
@@ -83,6 +83,7 @@ def create_base_network(filters, kernel_size, input_variables, network_variables
     return q_network
 
 def train_network(num_training_times, num_episodes_per_update, input_variables, q_network):
-    for _ in range(num_training_times):
+    for i in range(num_training_times):
+        print(f"\n==> Training Batch #{i+1} out of {num_training_times} <==")
         q_network = mstf.update_network_from_multiple_episodes(input_variables, q_network, num_episodes_per_update)
     return q_network
