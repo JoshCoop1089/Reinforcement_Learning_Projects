@@ -92,10 +92,10 @@ def identify_number_of_nearby_mines(reference_board, mine_locs):
 def print_board_with_column_nums(board):
     ### This will break a bit if the dim is over 10, 
     ### I'm just making it to test out manual spot choices
-    print("\t", end = '')
+    print("    ", end = '')
     for num in range(len(board)):
         print(num, end = ' ')
-    print("\n\t" + "-"*(2*len(board)-1))
+    print("\n   " + "-"*(2*len(board)))
     for i in range(len(board)):
         print(str(i) + " |", end = ' ')
         for j in range(len(board)):
@@ -120,14 +120,15 @@ def print_board(board):
     else:
         print_board_plain(board)
 
-# dimension = 10
-# num_mines = 60       
-# covered_board, reference_board, mine_locs = make_board(dimension, num_mines)
-# print_board(covered_board)
-# print_board(reference_board)
+'''
+dimension = 10
+num_mines = 60       
+covered_board, reference_board, mine_locs = make_board(dimension, num_mines)
+print_board(covered_board)
+print_board(reference_board)
 
-# dimension = 12
-# num_mines = 40        
-# covered_board, reference_board, mine_locs, cell_info = make_board(dimension, num_mines)
-# print_board(covered_board)
-# print_board(reference_board)
+dimension = 12
+num_mines = 40        
+covered_board, reference_board, mine_locs = make_board(dimension, num_mines)
+print_board(covered_board)
+print_board(reference_board)'''

@@ -334,40 +334,38 @@ def run_advanced_agent(covered_board, reference_board, num_mines):
     random_guess = 0
     unknown = ba.find_num_unknowns_on_board(covered_board)
     cbA = copy.deepcopy(covered_board)
+    #print("CSP unknowns",unknown)
     while unknown > 0:
-        # print(f"\n--> Random Guess: Round {random_guess}")
+        #print(f"\n--> CSP Random Guess: Round {random_guess}")
         cbA, mine_detonated = ba.uncover_random_spot(cbA, reference_board)
+        '''
+        print("Random guess")
+        bf.print_board(cbA)'''
         random_guess += 1
         if mine_detonated:
             total_score -= 1
         # bf.print_board(cbA)
         fact_dict = ba.build_fact_dictionary(cbA, reference_board)
-        # pprint.pprint(fact_dict)
         cbA = ba.apply_logic_to_fact_dict(cbA, reference_board, fact_dict)
         
         # We only make a random guess if we cannot make any new CSP assumptions
         # or basic fact assumptions on the current board state
         while True:
             try:
-                # print("Adv tring Inferences")
+                #print("Trying Inferences")
                 cbA, changes_made = assume_a_single_square(cbA, reference_board)
                 if not changes_made:
                     break
                 fact_dict = ba.build_fact_dictionary(cbA, reference_board)
-                # pprint.pprint(fact_dict)
                 cbA = ba.apply_logic_to_fact_dict(cbA, reference_board, fact_dict)
+                '''print("Inference made")
+                bf.print_board(cbA)'''
             except Exception:
-                break       
-        # bf.print_board(cbA)
-        unknown = ba.find_num_unknowns_on_board(cbA)
-            
-    print("-"*5 + "Board Sovled"+ "-"*5)
-    print(f"Final Score C: {total_score} out of {num_mines} safely found!")
-    print(f"Random Moves Needed C: {random_guess}")
-    return total_score, random_guess
+                break
 
-# dimension = 5
-# num_mines = 10
-# covered_board, reference_board, mine_locs = bf.make_board(dimension, num_mines)
-# score, count = run_advanced_agent(covered_board, reference_board, num_mines)
-# print("final score: ", score, "\n total guesses", count)
+        unknown = ba.find_num_unknowns_on_board(cbA)
+    '''
+    print("-"*5 + "CSP Board Solved"+ "-"*5)
+    print(f"Final Score CSP: {total_score} out of {num_mines} safely found!")
+    print(f"Random Moves Needed CSP: {random_guess}")'''
+    return total_score, random_guess

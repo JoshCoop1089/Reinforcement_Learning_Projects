@@ -1,16 +1,11 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Sun Feb 28 18:51:40 2021
-@author: joshc
-"""
 import time
 import matplotlib.pyplot as plt
 
 import base_functions as bf
 import basic_agent as ba
-import advanced_agent_constraints as adv
-import adv_agent_csp_v3 as csp
-import advanced_agent_equations as equ
+import advanced_agent_constraints as advc
+import adv_agent_csp_v2 as adv2
+import adv_agent_csp_v3 as adv
 import omega_advanced_agent as comb
 
 # Board Parameters
@@ -52,13 +47,10 @@ for num_mines in mine_num_list:
     agg_score_adv2, agg_rounds_adv2, agg_time_adv2 = 0, 0, 0
     agg_score_adv3, agg_rounds_adv3, agg_time_adv3 = 0, 0, 0
     agg_score_adv4, agg_rounds_adv4, agg_time_adv4 = 0, 0, 0
-
     
     for index in range(attempts):
         print(f"{index}, ", end = " ")
         cover, rb, mloc = bf.make_board(dimension, num_mines)                    
-        # bf.print_board(rb)
-        
         
         # Using Basic Agent
         basic_start = time.time()
@@ -68,32 +60,30 @@ for num_mines in mine_num_list:
         agg_score_basic += total_score
         agg_rounds_basic += count
         
-        # # Using Adv Agent (v1 CSP w/o Optimizations)
+        # # Using Adv Agent (v1 CSP base)
         adv_start = time.time()
-        total_score_adv, random_guess_adv = adv.run_advanced_agent(cover, rb, num_mines)
+        total_score_adv, random_guess_adv = adv.run_advanced_agent(cover, rb, num_mines, False, False, False)
         adv_end = time.time()
         agg_time_adv += (adv_end-adv_start)
         agg_score_adv += total_score_adv
         agg_rounds_adv += random_guess_adv
         
-        # Using Adv Agent (v3 CSP with Optimizations)
+        # Using Adv Agent (v2 CSP with Advanced Selection)
         adv2_start = time.time()
-        total_score_adv2, random_guess_adv2 = csp.run_advanced_agent(cover, rb, num_mines)
+        total_score_adv2, random_guess_adv2 = comb.run_combined_agent_advanced(cover, rb, num_mines, False, True)
         adv2_end = time.time()
         agg_time_adv2 += (adv2_end-adv2_start)
         agg_score_adv2 += total_score_adv2
         agg_rounds_adv2 += random_guess_adv2
 
-        
-        # # Using Eq Agent
+        # Using Adv Agent (v3 CSP with Global Info and Advanced Selection)
         adv3_start = time.time()
-        total_score_adv3, random_guess_adv3 = equ.run_advanced_equations(cover, rb, num_mines)
+        total_score_adv3, random_guess_adv3 = adv.run_advanced_agent(cover, rb, num_mines, False, True)
         adv3_end = time.time()
         agg_time_adv3 += (adv3_end-adv3_start)
         agg_score_adv3 += total_score_adv3
         agg_rounds_adv3 += random_guess_adv3
 
-        # # Using Combined Agent
         adv4_start = time.time()
         total_score_adv4, random_guess_adv4 = comb.run_combined_agent(cover, rb, num_mines)
         adv4_end = time.time()
@@ -101,9 +91,9 @@ for num_mines in mine_num_list:
         agg_score_adv4 += total_score_adv4
         agg_rounds_adv4 += random_guess_adv4
 
-
-    if num_mines == 0 and agg_score_basic == 0:
-        mine_scores_basic.append(1)
+    if num_mines == 0:
+        if agg_score_basic == 0:
+            mine_scores_basic.append(1)
         if agg_score_adv3 == 0:
             mine_scores_adv.append(1)
             mine_scores_adv2.append(1)
@@ -136,9 +126,9 @@ plt.title(f"{attempts} tries at solving {dimension}x{dimension} Minesweeper usin
 ax1.set_xlabel('Mines as Percent of Total Board')
 ax1.set_ylabel('%Mines Safely Found')
 ax1.plot(mine_percents, mine_scores_basic, color = 'g', label = "Basic")
-ax1.plot(mine_percents, mine_scores_adv, color = 'c', label = "Advanced v1")
-ax1.plot(mine_percents, mine_scores_adv2, color = 'r', label = "CSP")
-ax1.plot(mine_percents, mine_scores_adv3, color = 'b', label = "Equations")
+ax1.plot(mine_percents, mine_scores_adv, color = 'c', label = "Advanced")
+ax1.plot(mine_percents, mine_scores_adv2, color = 'b', label = "Combined Agent with Sel")
+ax1.plot(mine_percents, mine_scores_adv3, color = 'r', label = "Advanced with Sel")
 ax1.plot(mine_percents, mine_scores_adv4, color = 'y', label = "Combined")
 ax1.legend()
 
@@ -147,9 +137,9 @@ plt.title(f"{attempts} tries at solving {dimension}x{dimension} Minesweeper usin
 ax2.set_xlabel('Mines as Percent of Total Board')
 ax2.set_ylabel('Random Moves Required')
 ax2.plot(mine_percents, random_moves_basic, color = "g", label = "Basic")
-ax2.plot(mine_percents, random_moves_adv, color = "c", label = "Advanced v1")
-ax2.plot(mine_percents, random_moves_adv2, color = "r", label = "CSP")
-ax2.plot(mine_percents, random_moves_adv3, color = "b", label = "Equations")
+ax2.plot(mine_percents, random_moves_adv, color = "c", label = "Advanced")
+ax2.plot(mine_percents, random_moves_adv2, color = "b", label = "Combined Agent with Sel")
+ax2.plot(mine_percents, random_moves_adv3, color = "r", label = "Advanced with Sel")
 ax2.plot(mine_percents, random_moves_adv4, color = "y", label = "Combined")
 ax2.legend()
 
@@ -158,9 +148,9 @@ plt.title(f"{attempts} tries at solving {dimension}x{dimension} Minesweeper usin
 ax3.set_xlabel('Mines as Percent of Total Board')
 ax3.set_ylabel('Avg Solving Time per Board (seconds)')
 ax3.plot(mine_percents, times_basic, color = "g", label = "Basic")
-ax3.plot(mine_percents, times_adv, color = "c", label = "Advanced v1")
-ax3.plot(mine_percents, times_adv2, color = "r", label = "CSP")
-ax3.plot(mine_percents, times_adv3, color = "b", label = "Equations")
+ax3.plot(mine_percents, times_adv, color = "c", label = "Advanced")
+ax3.plot(mine_percents, times_adv2, color = "b", label = "Combined Agent with Sel")
+ax3.plot(mine_percents, times_adv3, color = "r", label = "Advanced with Sel")
 ax3.plot(mine_percents, times_adv4, color = "y", label = "Combined")
 ax3.legend()
 

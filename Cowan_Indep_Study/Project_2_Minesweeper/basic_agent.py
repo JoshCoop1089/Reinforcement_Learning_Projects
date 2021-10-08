@@ -40,7 +40,7 @@ If no hidden cell can be conclusively identied as a mine or safe, pick
 
 """
 import random, copy
-import pprint
+
 import base_functions as bf
 
 
@@ -72,10 +72,8 @@ def uncover_random_spot(covered_board, reference_board):
         i,j = random.randint(0,dim-1), random.randint(0,dim-1)
         if covered_board[i][j] == "?":
             is_covered = False
-            # print(f"\nUncovering R{i}C{j}")
             covered_board[i][j] = reference_board[i][j]
             if reference_board[i][j] == "M":
-                # print("KABOOM!")
                 mine_detonated = True
     return covered_board, mine_detonated
 
@@ -186,6 +184,7 @@ def build_fact_dictionary(covered_board, reference_board):
         for j in range(len(covered_board)):
             if covered_board[i][j].isnumeric() and num_unknown_neighbors(i,j, covered_board) > 0:
                 cell_info[(i,j)] = get_indiv_cell_info(covered_board, i, j)
+                
     return cell_info
 
 def find_num_unknowns_on_board(covered_board):
@@ -237,20 +236,13 @@ def apply_logic_to_fact_dict(covered_board, reference_board, fact_dict):
     unknowns = find_num_unknowns_on_board(covered_board)
     while made_changes and unknowns > 0:
         made_changes = False
-        # print(len(fact_dict.values()))
-        # pprint.pprint(fact_dict)
-        # bf.print_board(covered_board)
-        
-        # V = [status, num_possible_mines, known_mines, hidden_neighbors, safe_neighbors]
         for v in fact_dict.values():
             # Rule1
             # Num_possible_mines - known mines == hidden_neighbors
             #  This means that all hidden neighbors are mines
             if v[1] - len(v[2]) == len(v[3]):
                 if len(v[3]) != 0:
-                    # print("Unknowns all mined!")
                     for (i,j) in v[3]:
-                        # print(f"\tR{i}C{j} marked Mine!")
                         covered_board[i][j] = "M"
                         unknowns -= 1
                     made_changes = True
@@ -260,14 +252,11 @@ def apply_logic_to_fact_dict(covered_board, reference_board, fact_dict):
             # This means that all hidden neighbors are safe
             if len(v[2]) == v[1]:
                 if len(v[3]) != 0:
-                    # print("Unknowns all safe!")
                     for (i,j) in v[3]:
-                        # print(f"\tR{i}C{j} marked Safe!")
                         covered_board[i][j] = reference_board[i][j]
                         unknowns -= 1
                     made_changes = True
         if made_changes:
-            # print("Rechecking board, no random choice yet.")
             fact_dict = build_fact_dictionary(covered_board, reference_board)
             unknowns = find_num_unknowns_on_board(covered_board)
             
@@ -296,36 +285,30 @@ def run_basic_agent(covered_board, reference_board, num_mines):
     count : int
         The number of random guesses required to keep the solver logic moving forward
     """
-    # print("\tBasic Agent Time!")
     count = 0
     unknowns = find_num_unknowns_on_board(covered_board)
     total_score = num_mines
     cb = copy.deepcopy(covered_board)
-    
+
+    random_guess = 0
     # While a piece of the board is covered, apply basic logic until you 
     # run out of options, then flip over a new square and start again
     while unknowns > 0:
-        # print(f"\n--> Random Uncovering: Round {count}")
         cb, mine_detonated = uncover_random_spot(cb, reference_board)
-        # bf.print_board(cb)
+        random_guess+=1
         if mine_detonated:
             total_score -= 1
         fact_dict = build_fact_dictionary(cb, reference_board)
-        # pprint.pprint(fact_dict)
         cb = apply_logic_to_fact_dict(cb, reference_board, fact_dict)
         unknowns = find_num_unknowns_on_board(cb)
         count += 1
         
-    print("-"*5 + "Board Solved"+ "-"*5)
-    print(f"Final Score basic: {total_score} out of {num_mines} safely found!")
-    print(f"Random Moves Needed basic : {count}")
+    '''
+    print("-"*5 + "Basic Board Solved"+ "-"*5)
+    print(f"Final Score Basic: {total_score} out of {num_mines} safely found!")
+    print(f"Random Moves Needed Basic: {random_guess}")'''
     return total_score, count
 
-# dimension = 5
-# num_mines = 10
-# covered_board, reference_board, mine_locs = bf.make_board(dimension, num_mines)
-# score, count = run_basic_agent(covered_board, reference_board, num_mines)
-# print("final score: ", score, "\n total guesses", count)
 
 # dimension = 15
 # attempts = 20

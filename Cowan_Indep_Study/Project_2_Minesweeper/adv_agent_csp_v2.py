@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """
 Created on Sun Feb 28 21:03:31 2021
-
 @author: joshc
 """
 import copy, pprint
@@ -15,7 +14,6 @@ def apply_logic_to_fact_dict(covered_board, reference_board, fact_dict):
     Given a board state, fill in as many tiles as can be found using single 
         fact inferences.  When you run out, return to main function to randomly
         choose a new tile to check
-
     Parameters
     ----------
     covered_board : List of list of chars
@@ -26,8 +24,6 @@ def apply_logic_to_fact_dict(covered_board, reference_board, fact_dict):
         All neighbor info for a specific board.
         Cell Location -> Cell Status, Cell Possible Mine Neighbors, and then lists containing 
             locations of neighbors whic are known mine, hidden, or safe
-
-
     Returns
     -------
     covered_board : List of list of chars
@@ -91,7 +87,6 @@ def assume_a_single_square(covered_board, reference_board, fact_dict):
         the initial assumption has on the rest of the board.  If you ever get 
         a spot that is safe/mined from both assumptions, update the covered board,
         and repeat the procedure until there are no new tiles to change
-
     Parameters
     ----------
     covered_board : List of list of chars
@@ -102,7 +97,6 @@ def assume_a_single_square(covered_board, reference_board, fact_dict):
         All neighbor info for a specific board.
         Cell Location -> Cell Status, Cell Possible Mine Neighbors, and then lists containing 
             locations of neighbors whic are known mine, hidden, or safe
-
     Returns
     -------
     covered_board : List of list of chars
@@ -172,7 +166,6 @@ def run_advanced_agent(covered_board, reference_board, num_mines):
         safe mine identifications and total number of random guesses required
         
     Changes from 
-
     Parameters
     ----------
     covered_board : List of list of chars
@@ -182,7 +175,6 @@ def run_advanced_agent(covered_board, reference_board, num_mines):
     num_mines : int
         how many mines are present on the board (only used for scorekeeping, 
              not known to the agent as part of the global info bonus points)
-
     Returns
     -------
     total_score : int
