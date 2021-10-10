@@ -29,7 +29,6 @@ def get_greedy_next_action(q_board, board, epsilon):
     The zipping on list_of_locs might need to be changed when flag functionality is added?
     """
     action_is_flag = False
-    game_over = False
     next_action_loc = (0,0)
         
     # This is such a janky way of doing this wtf lol
@@ -38,7 +37,7 @@ def get_greedy_next_action(q_board, board, epsilon):
     places = list(zip(locs[0], locs[1], locs[2]))
     new = [(x,y) for (x,y,z) in places if z == 0]
     if len(new) == 0:
-        game_over = True
+        pass
         
     # Get location of highest q in available locations
     else:
@@ -53,7 +52,7 @@ def get_greedy_next_action(q_board, board, epsilon):
             next_action_loc = random.choice(new)
         # print(next_action_loc)
         
-    return next_action_loc, action_is_flag, game_over
+    return next_action_loc, action_is_flag
 
 def get_next_state(board_c, location, flag = False, playing = False):
     # Do we have to deep copy the board state in order for the history states to stay as they were before state transition?
@@ -98,9 +97,9 @@ def update_network_from_multiple_episodes(input_variables, q_network, num_episod
         reward_board = ms.make_reward_board(state_t1)
         state_t1_tensor = tf.convert_to_tensor(np.expand_dims(state_t1, axis=0))
         state_t1_q_board = q_network.predict(state_t1_tensor)
-        next_action_loc, _, game_over = get_greedy_next_action(state_t1_q_board, state_t1, epsilon)
+        next_action_loc, _ = get_greedy_next_action(state_t1_q_board, state_t1, epsilon)
         
-        while not game_over and state_counter < dimension**2:
+        while state_counter < dimension**2:
             # print("Going to next state")
             state_t2 = get_next_state(state_t1, next_action_loc, flag = False)
             state_t2_tensor = tf.convert_to_tensor(np.expand_dims(state_t2, axis=0))
@@ -121,7 +120,7 @@ def update_network_from_multiple_episodes(input_variables, q_network, num_episod
             state_t1 = state_t2
             state_t1_tensor = tf.convert_to_tensor(np.expand_dims(state_t1, axis=0))
             state_t1_q_board = q_network.predict(state_t1_tensor)
-            next_action_loc, _, game_over = get_greedy_next_action(state_t1_q_board, state_t1, epsilon)
+            next_action_loc, _ = get_greedy_next_action(state_t1_q_board, state_t1, epsilon)
 
     # Select a random number of states from history, and update network
     batch = random.sample(history.items(), (dimension**2)//batch_fraction)
@@ -132,10 +131,10 @@ def update_network_from_multiple_episodes(input_variables, q_network, num_episod
         labels.append(l)
     states = tf.convert_to_tensor(states)
     labels = tf.convert_to_tensor(labels)
-    q_network.fit(states, labels, epochs = 10)
+    q_network.fit(states, labels)
     return q_network
 
-def play_one_game(dimension, num_mines, q_network):
+def play_one_game_single_q(dimension, num_mines, q_network):
     
     state = ms.make_board(dimension, num_mines)
     state_counter = 0
@@ -145,8 +144,8 @@ def play_one_game(dimension, num_mines, q_network):
     while not game_over and state_counter < dimension**2:
         state_tensor = tf.convert_to_tensor(np.expand_dims(state, axis=0))
         state_q_board = q_network.predict(state_tensor)
-        next_action_loc, _, game_over = get_greedy_next_action(state_q_board, state, epsilon = 0)
-        if not game_over:
+        next_action_loc, _ = get_greedy_next_action(state_q_board, state, epsilon = 0)
+        if state_counter < dimension ** 2:
             x,y = next_action_loc
             # print("Next Click is: ", next_action_loc)
             if state[x][y][1] == 1:

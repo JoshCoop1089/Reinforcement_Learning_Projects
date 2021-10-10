@@ -5,7 +5,8 @@ Created on Sun Sep 26 14:15:29 2021
 @author: joshc
 """
 import MineSweeper_Base_Game as ms
-import MineSweeper_TF_Functions as mstf
+import MineSweeper_TF_Functions_Regular_Q as rq
+import MineSweeper_Replay_Buffer_Enhanced as rbe
 
 import tensorflow as tf
 from tensorflow.keras import layers
@@ -82,8 +83,35 @@ def create_base_network(filters, kernel_size, input_variables, network_variables
     # q_network.fit(states, labels)
     return q_network
 
-def train_network(num_training_times, num_episodes_per_update, input_variables, q_network):
+def train_q_network_without_good_buffer(num_training_times, num_episodes_per_update, input_variables, q_network):
     for i in range(num_training_times):
-        print(f"\n==> Training Batch #{i+1} out of {num_training_times} <==")
-        q_network = mstf.update_network_from_multiple_episodes(input_variables, q_network, num_episodes_per_update)
+        print(f"\n==> Single Q v1:\n\tTraining Batch #{i+1} out of {num_training_times} <==")
+        q_network = rq.update_network_from_multiple_episodes(input_variables, q_network, num_episodes_per_update)
     return q_network
+
+def train_q_network_with_good_buffer(input_variables, buffer_variables, num_training_times, q_networks):
+    update_type = "RegularQ"
+    for i in range(num_training_times):
+        print(f"\n==> Single Q v2:\n\tTraining Batch #{i+1} out of {num_training_times} <==")
+        q_networks = rbe.update_network_with_tiered_buffer(input_variables, buffer_variables, q_networks, update_type)
+    return q_networks[0]
+
+# def train_double_q_networks(input_variables, buffer_variables, num_training_times, q_networks):
+#     update_type = "RegularQ"
+#     for i in range(num_training_times):
+#         print(f"\n==> Training Batch #{i+1} out of {num_training_times} <==")
+#         q_networks[0] = rbe.update_network_with_tiered_buffer(input_variables, buffer_variables, q_networks, update_type)
+#     return q_networks[0]
+
+# def train_q_network_with_good_buffer(input_variables, buffer_variables, num_training_times, q_networks):
+#     update_type = "RegularQ"
+#     for i in range(num_training_times):
+#         print(f"\n==> Training Batch #{i+1} out of {num_training_times} <==")
+#         q_networks[0] = rbe.update_network_with_tiered_buffer(input_variables, buffer_variables, q_networks, update_type)
+#     return q_networks[0]
+
+
+
+
+
+
