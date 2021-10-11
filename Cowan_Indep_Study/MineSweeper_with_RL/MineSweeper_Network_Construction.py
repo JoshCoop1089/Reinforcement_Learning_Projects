@@ -84,34 +84,40 @@ def create_base_network(filters, kernel_size, input_variables, network_variables
     return q_network
 
 def train_q_network_without_good_buffer(num_training_times, num_episodes_per_update, input_variables, q_network):
+    avg_game_times = 0
     for i in range(num_training_times):
-        print(f"\n==> Single Q v1:\n\tTraining Batch #{i+1} out of {num_training_times} <==")
-        q_network = rq.update_network_from_multiple_episodes(input_variables, q_network, num_episodes_per_update)
-    return q_network
+        print(f"\n==> Single Q v1:\n\tTraining Round #{i+1} out of {num_training_times} <==")
+        q_network, avg_game_time = rq.update_network_from_multiple_episodes(input_variables, q_network, num_episodes_per_update)
+        avg_game_times = ms.avg_time_per_game(avg_game_times, avg_game_time, i+1)
+    return q_network, avg_game_times
 
 def train_q_network_with_good_buffer(input_variables, buffer_variables, num_training_times, q_networks):
+    avg_game_times = 0
     update_type = "RegularQ"
     for i in range(num_training_times):
-        print(f"\n==> Single Q v2:\n\tTraining Batch #{i+1} out of {num_training_times} <==")
-        q_networks = rbe.update_network_with_tiered_buffer(input_variables, buffer_variables, q_networks, update_type)
-    return q_networks[0]
+        print(f"\n==> Single Q v2:\n\tTraining Round #{i+1} out of {num_training_times} <==")
+        q_networks, avg_game_time = rbe.update_network_with_tiered_buffer(input_variables, buffer_variables, q_networks, update_type)
+        avg_game_times = ms.avg_time_per_game(avg_game_times, avg_game_time, i+1)
+    return q_networks[0], avg_game_times
 
-# def train_double_q_networks(input_variables, buffer_variables, num_training_times, q_networks):
-#     update_type = "RegularQ"
-#     for i in range(num_training_times):
-#         print(f"\n==> Training Batch #{i+1} out of {num_training_times} <==")
-#         q_networks[0] = rbe.update_network_with_tiered_buffer(input_variables, buffer_variables, q_networks, update_type)
-#     return q_networks[0]
+def train_double_q_networks(input_variables, buffer_variables, num_training_times, q_networks):
+    avg_game_times = 0
+    update_type = "DoubleQ"
+    for i in range(num_training_times):
+        print(f"\n==> Double Q Training Round #{i+1} out of {num_training_times} <==")
+        q_networks, avg_game_time = rbe.update_network_with_tiered_buffer(input_variables, buffer_variables, q_networks, update_type)
+        avg_game_times = ms.avg_time_per_game(avg_game_times, avg_game_time, i+1)
+    return q_networks, avg_game_times
 
-# def train_q_network_with_good_buffer(input_variables, buffer_variables, num_training_times, q_networks):
-#     update_type = "RegularQ"
-#     for i in range(num_training_times):
-#         print(f"\n==> Training Batch #{i+1} out of {num_training_times} <==")
-#         q_networks[0] = rbe.update_network_with_tiered_buffer(input_variables, buffer_variables, q_networks, update_type)
-#     return q_networks[0]
+def train_actor_critic_networks(input_variables, buffer_variables, num_training_times, q_networks):
+    avg_game_times = 0
+    update_type = "ActorCritic"
+    for i in range(num_training_times):
+        print(f"\n==> Actor Critic Training Batch #{i+1} out of {num_training_times} <==")
+        q_networks, avg_game_time = rbe.update_network_with_tiered_buffer(input_variables, buffer_variables, q_networks, update_type)
+        avg_game_times = ms.avg_time_per_game(avg_game_times, avg_game_time, i+1)
 
+        # After a single round of updates, copy weights from critic network to actor network
+        q_networks[0].set_weights(q_networks[1].get_weights()) 
 
-
-
-
-
+    return q_networks, avg_game_times

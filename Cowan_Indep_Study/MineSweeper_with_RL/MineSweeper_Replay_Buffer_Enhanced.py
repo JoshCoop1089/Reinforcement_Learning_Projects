@@ -71,7 +71,7 @@ import MineSweeper_Base_Game as ms
 # import MineSweeper_TF_Functions_Regular_Q as rq
 from MineSweeper_TF_Functions_Regular_Q import get_greedy_next_action, get_next_state, q_value_update
 
-import random
+import random, time
 import numpy as np
 import tensorflow as tf
 
@@ -84,6 +84,7 @@ def double_q_greedy_next_action(state_t1_q_board, state_t1_q_board_2, state_t1, 
     locs = np.where(state_t1 == 0)
     places = list(zip(locs[0], locs[1], locs[2]))
     new = [(x,y) for (x,y,z) in places if z == 0]
+    # print(new)
     if len(new) == 0:
         pass
         
@@ -115,8 +116,9 @@ def update_network_with_tiered_buffer(input_variables, buffer_variables, q_netwo
     """
     
     dimension, num_mines, learning_param, _ , epsilon = input_variables
-    generations_per_buffer, games_per_buffer, fits_per_buffer_fill = buffer_variables
-    state_counter = 0
+    generations_per_buffer, games_per_buffer, fits_per_buffer_fill, num_buffer_refills = buffer_variables
+    state_counter = 1
+    avg_game_time = 0
     history = {}
     history_terminals = {}
     
@@ -137,8 +139,7 @@ def update_network_with_tiered_buffer(input_variables, buffer_variables, q_netwo
     # Replay Buffer Specifics
     max_buffer_state_count = (dimension ** 2) * games_per_buffer
     num_games_per_update = int((2/(2*generations_per_buffer - 1)) * games_per_buffer)
-    # num_states_per_update = int((2/(2*generations_per_buffer - 1)) * max_buffer_state_count)
-    num_buffer_updates = 2*generations_per_buffer
+    num_buffer_updates = num_buffer_refills * generations_per_buffer
 
     # Regular Q Network
     if update_type == 'RegularQ':
@@ -163,9 +164,11 @@ def update_network_with_tiered_buffer(input_variables, buffer_variables, q_netwo
         
         # Fill the history buffer
         for game_num in range(num_games_per_update):
-            if game_num in [0, num_games_per_update//4 -1, 2*num_games_per_update//4 -1 , 3*num_games_per_update//4-1, num_games_per_update -1]:
+            if game_num in [num_games_per_update//4 -1, 2*num_games_per_update//4 -1 , 
+                                    3*num_games_per_update//4-1, num_games_per_update -1]:
                 print(f"Starting Training Game {game_num + 1} out of {num_games_per_update}")
                 print(f"Length of Buffer: {len(history)}")
+            start = time.time()
             state_t1 = ms.make_board(dimension, num_mines)
             reward_board = ms.make_reward_board(state_t1)
             game_over = False
@@ -209,6 +212,9 @@ def update_network_with_tiered_buffer(input_variables, buffer_variables, q_netwo
                     
                 state_counter += 1
                 state_t1 = state_t2
+            end = time.time()
+            new_game_time = end-start
+            avg_game_time = ms.avg_time_per_game(avg_game_time, new_game_time, game_num+1)
 
         # Update network with new random subbatches from current buffer
         for _ in range(fits_per_buffer_fill):
@@ -223,10 +229,14 @@ def update_network_with_tiered_buffer(input_variables, buffer_variables, q_netwo
             states = tf.convert_to_tensor(states)
             labels = tf.convert_to_tensor(labels)
             
+            # Force model.fit function to use the whole batch at once for a single pass
+            # Is it jank? Yes, but IDK how to use the reg and term lists in the built in batch options
+            baby_batch_length = dimension ** 2 + 1
+            
             # ************
             # How does this work for updating the values inside the q_networks passed in lists?
-            update_q_net.fit(states, labels)
+            update_q_net.fit(states, labels, batch_size = baby_batch_length)
             # *******
 
     # Does returning the reference to the input list also return the updated network values?
-    return q_networks
+    return q_networks, avg_game_time

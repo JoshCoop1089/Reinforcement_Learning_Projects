@@ -6,7 +6,7 @@ Created on Sun Sep 26 14:13:38 2021
 """
 import MineSweeper_Base_Game as ms
 
-import random, copy
+import random, copy, time
 import numpy as np
 import tensorflow as tf
 
@@ -90,9 +90,11 @@ def update_network_from_multiple_episodes(input_variables, q_network, num_episod
     """
     dimension, num_mines, learning_param, batch_fraction, epsilon = input_variables
     state_counter = 0
+    avg_game_time = 0
     history = {}
     
-    for _ in range(num_episodes_per_update):
+    for game_num in range(num_episodes_per_update):
+        start = time.time()
         state_t1 = ms.make_board(dimension, num_mines)
         reward_board = ms.make_reward_board(state_t1)
         state_t1_tensor = tf.convert_to_tensor(np.expand_dims(state_t1, axis=0))
@@ -121,6 +123,10 @@ def update_network_from_multiple_episodes(input_variables, q_network, num_episod
             state_t1_tensor = tf.convert_to_tensor(np.expand_dims(state_t1, axis=0))
             state_t1_q_board = q_network.predict(state_t1_tensor)
             next_action_loc, _ = get_greedy_next_action(state_t1_q_board, state_t1, epsilon)
+            
+        end = time.time()
+        new_game_time = end-start
+        avg_game_time = ms.avg_time_per_game(avg_game_time, new_game_time, game_num+1)
 
     # Select a random number of states from history, and update network
     batch = random.sample(history.items(), (dimension**2)//batch_fraction)
@@ -131,71 +137,5 @@ def update_network_from_multiple_episodes(input_variables, q_network, num_episod
         labels.append(l)
     states = tf.convert_to_tensor(states)
     labels = tf.convert_to_tensor(labels)
-    q_network.fit(states, labels)
-    return q_network
-
-def play_one_game_single_q(dimension, num_mines, q_network):
-    
-    state = ms.make_board(dimension, num_mines)
-    state_counter = 0
-    mine_times = []
-    game_over = False 
-        
-    while not game_over and state_counter < dimension**2:
-        state_tensor = tf.convert_to_tensor(np.expand_dims(state, axis=0))
-        state_q_board = q_network.predict(state_tensor)
-        next_action_loc, _ = get_greedy_next_action(state_q_board, state, epsilon = 0)
-        if state_counter < dimension ** 2:
-            x,y = next_action_loc
-            # print("Next Click is: ", next_action_loc)
-            if state[x][y][1] == 1:
-                mine_times.append(state_counter)
-            #     print("Location is a mine")
-            # print("Going to next state.")
-            # print("- "*dimension)
-            state = get_next_state(state, next_action_loc, flag = False, playing = True)
-            # ms.print_board(state)
-            state_counter += 1    
-            
-    # This helps score the no flag, continued play version
-    avg_mine_click = np.mean(mine_times)
-    return avg_mine_click
-
-def play_one_game_random_choice_baseline(dimension, num_mines):
-    
-    state = ms.make_board(dimension, num_mines)
-    state_counter = 0
-    mine_times = []
-    game_over = False 
-        
-    while not game_over and state_counter < dimension**2:
-        
-        # Find all available locations
-        locs = np.where(state == 0)
-        places = list(zip(locs[0], locs[1], locs[2]))
-        new = [(x,y) for (x,y,z) in places if z == 0]
-        if len(new) == 0:
-            game_over = True
-            
-        # Random Choose from list
-        next_action_loc = random.choice(new)
-        
-        if not game_over:
-            x,y = next_action_loc
-            if state[x][y][1] == 1:
-                mine_times.append(state_counter)
-            state = get_next_state(state, next_action_loc, flag = False, playing = True)
-            state_counter += 1    
-            
-    # This helps score the no flag, continued play version
-    avg_mine_click = np.mean(mine_times)
-    return avg_mine_click
-
-
-def play_one_game_no_training_baseline(dimension, num_mines, q_network):
-    """
-    Just making a nice function wrapper to make the code look more logical
-    
-    The q network passed into here would simply be an untrained version
-    """
-    return play_one_game(dimension, num_mines, q_network)
+    q_network.fit(states, labels, batch_size = dimension**2, epochs = 12)
+    return q_network, avg_game_time
