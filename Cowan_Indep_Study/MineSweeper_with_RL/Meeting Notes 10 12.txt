@@ -1,0 +1,36 @@
+could we train a network to predict where mines are?
+
+subproject 
+simplify network into one dense layer with 3x3 board input
+find mines only
+
+Input Data:
+clicked space only, keep rest of board blank
+one hot encoding of clues, mines, clicked
+
+[0,0,....,0]  would be an unclicked spot
+[1,0,....,0]  would be a mine
+[1,1,....,1]  would be some onehot encoding based on local mine clue value
+[1,1,0,..,0]  would indicate one local mine since clue[0] indicated clicked and clue[1] is for 'one mine'
+
+Need to make function to translate full boardstate from make_board into one hot encoding version
+
+turn dimxdimx3 board into dimxdimx9, with the 9 vector being the one hot encoded click/mine/clue info
+
+Output Data:
+Ones for mine location, zeros for non mine
+
+use logloss to figure out the mine classification encoding
+
+output a probability to say a mine is located
+
+board state changes
+don't pass in perfect information
+
+use onehot encoding to show the state spaces, see subproject notes for transformation function to help with input data
+
+Also, just try single simple network layer with new onehot non perfect data and see what happens
+
+consider deque objects to handle fancy replay buffer
+https://docs.python.org/3/library/collections.html#collections.deque
+

@@ -1,0 +1,33 @@
+Network Architecture
+No need for more complex layering, consider losing a conv layer or a dense layer
+
+Terminal State Replay buffer vs non terminal state buffer for training to not lose the data from the terminal states
+
+bias in the training set due to state choice
+
+replay buffer changes:
+use smaller batch updates, using the fraction originally was too large
+sample small amounts from terminal buffer and non terminal buffer
+
+check the fit function for batch size options
+
+Forgetting:
+fix size for replay, and replace as you go to not use old games
+
+Double Q Learning to get around maximization bias
+use network_a to update network b based on random choice of network to start
+
+Actor Critic
+Two networks
+use action network to choose action, but then update critic
+eventually you freeze the critic, copy it over the actor, and then keep updating the actor
+
+Policy Gradient
+
+
+Try a 3x3 board, see what happens
+
+Bootstrap the network with human played games, use p2 agent to generate "good" data to start the network
+
+Network quality measurments
+
