@@ -1,0 +1,25 @@
+Meeting Notes 10.19.21
+
+Experiment:
+Run two networks with a complex network vs simpler network to see training plateau
+
+Network Comparisons:
+	One dense layer size 2500 no dropout
+	One dense layer size 2500 dropout
+	One dense 2500 with l2 reg
+
+	One dense layer size 1250 no dropout
+	One dense layer size 1250 dropout
+	One dense 1250 with l2 reg
+
+	2 dense layers size 600 nodes, no dropout
+	2 dense layers size 600 dropout
+	2 dense 600, reg
+
+Batch normalization layers?
+
+
+
+Doubleq and actor critic back running
+
+Use predicitve network to generate state action pairs to train q network

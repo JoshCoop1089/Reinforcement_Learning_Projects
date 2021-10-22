@@ -155,7 +155,7 @@ def optimal_play_percent(dimension, num_mines, score):
 
     safe_spaces = dimension**2 - num_mines
     
-    low = np.mean([x for x in range(0,safe_spaces)])
+    low = np.mean([x for x in range(0,num_mines)])
     high = np.mean([x for x in range(safe_spaces, dimension**2)])
     
     percentile = (score - low)/(high - low)

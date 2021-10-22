@@ -22,13 +22,13 @@ Game Type: Play through to the end
     Using avg_mine_time:
         for a 10x10 board with 40 mines
             The worst possible game: (click all mines first)
-                29.5
+                19.5
             The best possible game: (click all safe first)
                 79.5
                 
     Scaling function for scoring:
         safe_spaces = dim**2 - num_mines
-        low = np.mean([x for x in range(0,safe_spaces)])
+        low = np.mean([x for x in range(0,num_mines)])
         high = np.mean([x for x in range(safe_spaces, dim**2)])
         percentile = (Score - Low)/(High - Low)
 """

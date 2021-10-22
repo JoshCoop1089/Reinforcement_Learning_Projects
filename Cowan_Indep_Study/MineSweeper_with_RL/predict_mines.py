@@ -21,6 +21,7 @@ Mine Prediction Sub Project:
 
 """
 import matplotlib.pyplot as plt
+import seaborn as sns
 import tensorflow as tf
 from tensorflow.keras import layers
 from tensorflow.keras import regularizers
@@ -95,6 +96,9 @@ if __name__ == '__main__':
     num_training_rounds = 50
     num_games_eval = 500
     
+    dropout = 0.37
+    dense_size = 100*(dimension**2)
+    
     
     # ------------------- #
     
@@ -105,7 +109,10 @@ if __name__ == '__main__':
     mine_network = tf.keras.Sequential([
                     tf.keras.Input(shape = input_shape),
                     layers.Flatten(),
-                    layers.Dropout(0.25),
+                    layers.Dropout(dropout),
+                    layers.Dense(dense_size),
+                    layers.Dropout(dropout),
+                    # layers.Dense(dense_size),
                     layers.Dense(dimension**2, activation = 'sigmoid'),
                     layers.Reshape(target_shape=(dimension, dimension))
     ])
@@ -118,7 +125,7 @@ if __name__ == '__main__':
         state = []
         label = []
         history = generate_test_data(dimension, num_mines, num_games)  
-        batch = random.sample(history.items(), 8*(dimension**2))
+        batch = random.sample(history.items(), 20*(dimension**2))
     
         # print(type(history))
         for k, (s,l) in batch:
@@ -142,7 +149,7 @@ if __name__ == '__main__':
     for game in range(num_games_eval):
         if game in [num_games_eval//4 -1, 2*num_games_eval//4 -1 , 
                                 3*num_games_eval//4-1, num_games_eval -1]:
-            print(f"Starting Training Game {game + 1} out of {num_games_eval}")
+            print(f"Starting Evaluation Game {game + 1} out of {num_games_eval}")
         board = ms.make_board(dimension, num_mines)
         # ms.print_board(board, full_print=True)
         b_enc = np.zeros(input_shape)
@@ -169,6 +176,12 @@ if __name__ == '__main__':
     
     avg_score = [100*ms.optimal_play_percent(dimension, num_mines, score) for score in avg_times]
     plt.hist(avg_score)
-    plt.title(f"Avg Score over {num_games_eval} games: {np.mean(avg_score)}/100" + 
+    plt.title(f"Board Size: {dimension}x{dimension} || Num Mines: {num_mines}" +
+              f"\nDropout Coef: {dropout} || Hidden Dense Layer: {dense_size} nodes"
+              f"\nAvg Score over {num_games_eval} games: {round(np.mean(avg_score), 1)}/100" + 
               f"\nMedian Score: {round(np.median(avg_score), 1)} || Standard Deviation: {round(np.std(avg_score), 1)}")
     plt.xlabel('Game Score (higher is better!) [Percent of Optimal Moves Made]')
+    plt.show()
+    
+    sns.violinplot(data = avg_score, inner = 'quartile')
+    plt.ylabel('Game Score [Percent of Optimal Moves Made]')
