@@ -1,5 +1,12 @@
 # -*- coding: utf-8 -*-
 """
+Created on Mon Oct 25 13:29:03 2021
+
+@author: joshc
+"""
+
+# -*- coding: utf-8 -*-
+"""
 Created on Tue Oct 19 18:01:38 2021
 
 @author: joshc
@@ -20,18 +27,18 @@ from Minesweeper_Non_Perfect_Info import train_q_network_v1
 
 ################################################################
 # Board Specifics
-dimension = 5
+dimension = 3
 mine_percent = 0.4
 
 # Learning Specifics
 learning_param = 0.05
 epsilon_greedy = 0.05
-dropout_coef = 0.375
-l2_val = 0.025
+l2_vl = 0.025
+l2_val = [round(0.75*l2_vl, 5), l2_vl, 1.25*l2_vl]
 
 # # -----> Testing Outputs Quickly <----- #
 # # Training Specifics (non fancy buffer) (only used for one version of regular q)
-# num_episodes_per_update = 5
+# num_episodes_per_update = 20
 # num_training_times_v1 = 2
 # batch_fraction = 1          #Divide the states by this value to produce the batch
 
@@ -63,7 +70,7 @@ num_training_times_q = 2
 num_games = 1000
 
 version = ["One Large Dense", "One Small Dense", "Two Small Dense"]
-network_style = ["No Drop", "Drop", "L2 Reg"]
+network_style = l2_val
 
 ##############################################################
 
@@ -78,74 +85,67 @@ input_shape = (dimension, dimension, 11)
 network_v1_no_drop = tf.keras.Sequential([
                     tf.keras.Input(shape = input_shape),
                     layers.Flatten(),
-                    layers.Dense(100*(dimension**2)),
-                    layers.Dense(dimension**2),
+                    layers.Dense(100*(dimension**2), kernel_regularizer=regularizers.l2(l2_val[0])),
+                    layers.Dense(dimension**2, kernel_regularizer=regularizers.l2(l2_val[0])),
                     layers.Reshape(target_shape=(dimension, dimension))
     ])
 network_v1_drop = tf.keras.Sequential([
                     tf.keras.Input(shape = input_shape),
                     layers.Flatten(),
-                    layers.Dropout(dropout_coef),
-                    layers.Dense(100*(dimension**2)),
-                    layers.Dropout(dropout_coef),
-                    layers.Dense(dimension**2),
+                    layers.Dense(100*(dimension**2), kernel_regularizer=regularizers.l2(l2_val[1])),
+                    layers.Dense(dimension**2, kernel_regularizer=regularizers.l2(l2_val[1])),
                     layers.Reshape(target_shape=(dimension, dimension))
     ])
 network_v1_regularized = tf.keras.Sequential([
                     tf.keras.Input(shape = input_shape),
                     layers.Flatten(),
-                    layers.Dense(100*(dimension**2), kernel_regularizer=regularizers.l2(l2_val)),
-                    layers.Dense(dimension**2, kernel_regularizer=regularizers.l2(l2_val)),
+                    layers.Dense(100*(dimension**2), kernel_regularizer=regularizers.l2(l2_val[2])),
+                    layers.Dense(dimension**2, kernel_regularizer=regularizers.l2(l2_val[2])),
                     layers.Reshape(target_shape=(dimension, dimension))
     ])
 network_v2_no_drop = tf.keras.Sequential([
                     tf.keras.Input(shape = input_shape),
                     layers.Flatten(),
-                    layers.Dense(50*(dimension**2)),
-                    layers.Dense(dimension**2),
+                    layers.Dense(50*(dimension**2), kernel_regularizer=regularizers.l2(l2_val[0])),
+                    layers.Dense(dimension**2, kernel_regularizer=regularizers.l2(l2_val[0])),
                     layers.Reshape(target_shape=(dimension, dimension))
     ])
 network_v2_drop = tf.keras.Sequential([
                     tf.keras.Input(shape = input_shape),
                     layers.Flatten(),
-                    layers.Dropout(dropout_coef),
-                    layers.Dense(50*(dimension**2)),
-                    layers.Dropout(dropout_coef),
-                    layers.Dense(dimension**2),
+                    layers.Dense(50*(dimension**2), kernel_regularizer=regularizers.l2(l2_val[1])),
+                    layers.Dense(dimension**2, kernel_regularizer=regularizers.l2(l2_val[1])),
                     layers.Reshape(target_shape=(dimension, dimension))
     ])
 network_v2_regularized = tf.keras.Sequential([
                     tf.keras.Input(shape = input_shape),
                     layers.Flatten(),
-                    layers.Dense(50*(dimension**2), kernel_regularizer=regularizers.l2(l2_val)),
-                    layers.Dense(dimension**2, kernel_regularizer=regularizers.l2(l2_val)),
+                    layers.Dense(50*(dimension**2), kernel_regularizer=regularizers.l2(l2_val[2])),
+                    layers.Dense(dimension**2, kernel_regularizer=regularizers.l2(l2_val[2])),
                     layers.Reshape(target_shape=(dimension, dimension))
     ])
 network_v3_no_drop = tf.keras.Sequential([
                     tf.keras.Input(shape = input_shape),
                     layers.Flatten(),
-                    layers.Dense(25*(dimension**2)),
-                    layers.Dense(25*(dimension**2)),
-                    layers.Dense(dimension**2),
+                    layers.Dense(25*(dimension**2), kernel_regularizer=regularizers.l2(l2_val[0])),
+                    layers.Dense(25*(dimension**2), kernel_regularizer=regularizers.l2(l2_val[0])),
+                    layers.Dense(dimension**2, kernel_regularizer=regularizers.l2(l2_val[0])),
                     layers.Reshape(target_shape=(dimension, dimension))
     ])
 network_v3_drop = tf.keras.Sequential([
                     tf.keras.Input(shape = input_shape),
                     layers.Flatten(),
-                    layers.Dropout(dropout_coef),
-                    layers.Dense(25*(dimension**2)),
-                    layers.Dropout(dropout_coef),
-                    layers.Dense(25*(dimension**2)),
-                    layers.Dropout(dropout_coef),
-                    layers.Dense(dimension**2),
+                    layers.Dense(25*(dimension**2), kernel_regularizer=regularizers.l2(l2_val[1])),
+                    layers.Dense(25*(dimension**2), kernel_regularizer=regularizers.l2(l2_val[1])),
+                    layers.Dense(dimension**2, kernel_regularizer=regularizers.l2(l2_val[1])),
                     layers.Reshape(target_shape=(dimension, dimension))
     ])
 network_v3_regularized = tf.keras.Sequential([
                     tf.keras.Input(shape = input_shape),
                     layers.Flatten(),
-                    layers.Dense(25*(dimension**2), kernel_regularizer=regularizers.l2(l2_val)),
-                    layers.Dense(25*(dimension**2), kernel_regularizer=regularizers.l2(l2_val)),
-                    layers.Dense(dimension**2, kernel_regularizer=regularizers.l2(l2_val)),
+                    layers.Dense(25*(dimension**2), kernel_regularizer=regularizers.l2(l2_val[2])),
+                    layers.Dense(25*(dimension**2), kernel_regularizer=regularizers.l2(l2_val[2])),
+                    layers.Dense(dimension**2, kernel_regularizer=regularizers.l2(l2_val[2])),
                     layers.Reshape(target_shape=(dimension, dimension))
     ])
 
@@ -210,7 +210,7 @@ for axe, row in zip(ax3[:,0], version):
     axe.set_ylabel(row, rotation=90, size='large')
     
 fig.suptitle(f"Unique Scores from Random and Trained for {num_games} games\nBoard Size: {dimension}x{dimension} || Mines: {num_mines}" + 
-              f"\nDrop Coef: {dropout_coef} || L2 Regularization: {l2_val}"+"\n"+ "- "*20 + "\nBlue: Random, Orange: Trained")
+              "\n"+ "- "*20 + "\nBlue: Random, Orange: Trained")
 fig1.suptitle(f"Score Distributions for {num_games} games\nBlue: Random, Orange: Trained")
 fig2.suptitle("Loss over Training")
 fig3.suptitle(f"Score Results\nRandom Choice: {round(np.mean(avg_score_random), 1)}/100 || Median: {round(np.median(avg_score_random), 1)}")
@@ -254,7 +254,7 @@ def distinct_vals_b_minus_a(a, b):
 for i in range(3):
     for j in range(3):
         version_name = version[i]
-        network_type = network_style[j]
+        network_type = str(network_style[j])
         print("\n\n ---> Starting New Network Type <---\n\t", version_name, network_type)
         model = models[3*i+j]
         # model.summary()    

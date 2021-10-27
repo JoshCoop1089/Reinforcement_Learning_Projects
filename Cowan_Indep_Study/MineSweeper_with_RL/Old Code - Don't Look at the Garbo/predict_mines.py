@@ -112,7 +112,6 @@ if __name__ == '__main__':
                     layers.Dropout(dropout),
                     layers.Dense(dense_size),
                     layers.Dropout(dropout),
-                    # layers.Dense(dense_size),
                     layers.Dense(dimension**2, activation = 'sigmoid'),
                     layers.Reshape(target_shape=(dimension, dimension))
     ])

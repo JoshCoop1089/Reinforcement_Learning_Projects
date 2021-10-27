@@ -134,10 +134,10 @@ def make_reward_board(board):
     """
     reward_board = np.zeros(board.shape[0:2])
     dimension = board.shape[0]
-    # Reward for mine is -5, otherwise 0
+    # Reward for mine is -1, otherwise 0
     for x in range(dimension):
         for y in range(dimension):
-            reward_board[x][y] = -5 * board[x][y][1]
+            reward_board[x][y] = -1 * board[x][y][1]
     return reward_board
 
 def optimal_play_percent(dimension, num_mines, score):

@@ -167,13 +167,24 @@ def update_network_from_simple_buffer(input_variables, q_network, num_episodes_p
         new_game_time = end-start
         avg_game_time = ms.avg_time_per_game(avg_game_time, new_game_time, game_num+1)
 
+    checkpoint_filepath = '\model_checkpoints\checkpoint'
+    model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+                                        filepath=checkpoint_filepath,
+                                        save_weights_only=True,
+                                        monitor='accuracy',
+                                        mode='max',
+                                        save_best_only=True)
+        
+
     # Update network with new random subbatches from current buffer
     for _ in range(fits_per_buffer_fill):
-        regular_batch = random.sample(history.items(), 4*(dimension ** 2))
-        terminal_batch = random.sample(history_terminals.items(), 4)
-        _, (terminal, terminal_q) = terminal_batch[0]
-        states = [terminal]
-        labels = [terminal_q]
+        states = []
+        labels = []
+        terminal_batch = random.sample(history_terminals.items(), 10)
+        for k, (s,l) in terminal_batch:
+            states.append(s)
+            labels.append(l)
+        regular_batch = random.sample(history.items(), 10*(dimension ** 2))
         for k, (s,l) in regular_batch:
             states.append(s)
             labels.append(l)
@@ -186,10 +197,13 @@ def update_network_from_simple_buffer(input_variables, q_network, num_episodes_p
         
         # ************
         # How does this work for updating the values inside the q_networks passed in lists?
-        outputs = q_network.fit(states, labels, batch_size = baby_batch_length)
+        outputs = q_network.fit(states, labels, batch_size = baby_batch_length, callbacks = [model_checkpoint_callback])
         loss.extend(outputs.history['loss'])
         accuracy.extend(outputs.history['accuracy'])
         # *******
+        
+    # The model weights (that are considered the best) are loaded into the model.
+    q_network.load_weights(checkpoint_filepath)
     metrics = [loss, accuracy]
     return q_network, avg_game_time, metrics
 

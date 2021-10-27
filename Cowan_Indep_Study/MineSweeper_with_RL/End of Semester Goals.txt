@@ -1,0 +1,15 @@
+Goals for the end of the semester
+
+Training q network off mine predictor
+	can you get q network to mimic mine predictor
+
+Actor Critic
+	use decaying epsilon, but not mine predictor network training
+	
+Loss on Mine Click
+	how do why now who where
+	
+Policy Gradient Network
+	fancy scary math time
+	
+
