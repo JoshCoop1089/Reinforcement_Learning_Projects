@@ -1,0 +1,9 @@
+Compute the gradients explicitly
+
+function.applygradient -> compute grad of network and hand back vector which is grad of network
+
+Run Episode
+compute and sum grads
+avg over a bunch current best guess of the grad of v for current network values
+
+go look up tf.gradient tape

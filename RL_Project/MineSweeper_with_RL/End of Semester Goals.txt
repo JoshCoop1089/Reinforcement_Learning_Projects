@@ -13,3 +13,9 @@ Policy Gradient Network
 	fancy scary math time
 	
 
+Gradient Clipping
+	counteract
+	
+Network Learning rate shink down insanely
+
+Activation function of sigmoid but multiplied by dim**2

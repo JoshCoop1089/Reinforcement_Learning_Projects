@@ -1,13 +1,15 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Oct 26 18:59:56 2021
+Created on Mon Oct 25 12:59:27 2021
 
 @author: joshc
 """
 import tensorflow as tf
 from tensorflow.keras import layers
+from tensorflow.keras import regularizers
 import matplotlib.pyplot as plt
 import seaborn as sns
+
 import numpy as np
 import random
 import copy
@@ -40,6 +42,77 @@ def one_hot_encode_next_state(board_enc, ref_board, next_loc, playing = False):
     board[x][y] = temp_encoder
     return board
 
+def generate_mine_test_data(dimension, num_mines, num_games):
+    state_counter = 0
+    history = {}
+    for _ in range(num_games):
+        board = ms.make_board(dimension, num_mines)
+        mine_board = board[:,:,1]
+        state = np.zeros((dimension, dimension, 11))
+        game_over = False
+        
+        # Generate random next board state
+        while not game_over:
+            # Find all available locations
+            locs = np.where(board[:,:,0] == 0)
+            places = list(zip(locs[0], locs[1]))
+            
+            if len(places) == 0:
+                game_over = True
+            else:
+                history[state_counter] = (state, mine_board)
+                # Random Choose from list
+                next_loc = random.choice(places) 
+                state = one_hot_encode_next_state(state, board, next_loc)  
+                state_counter += 1
+    return history
+
+def create_and_train_mine_predictor(dimension, num_mines, mine_network_training_params):
+    num_games_mine_train, num_training_rounds, dropout_coef, dense_size = mine_network_training_params
+    input_shape = (dimension, dimension, 11)
+    
+    # Create Mine Network
+    mine_location_network = tf.keras.Sequential([
+                        tf.keras.Input(shape = input_shape),
+                        layers.Flatten(),
+                        layers.Dropout(dropout_coef),
+                        layers.Dense(dense_size),
+                        layers.Dropout(dropout_coef),
+                        layers.Dense(dimension**2, activation = 'sigmoid'),
+                        layers.Reshape(target_shape=(dimension, dimension))
+        ])
+    
+    mine_location_network.compile(optimizer='adam',
+                                  loss=tf.keras.losses.CategoricalCrossentropy(),
+                                  metrics=['accuracy']) 
+    
+    # Set up checkpoint for best weights over course of training
+    checkpoint_filepath = '\model_checkpoints\checkpoint'
+    model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+                                        filepath=checkpoint_filepath,
+                                        save_weights_only=True,
+                                        monitor='accuracy',
+                                        mode='max',
+                                        save_best_only=True)
+    
+    sample_states =  int(num_games_mine_train * 0.3) + 1
+    for _ in range(num_training_rounds):    
+        state = []
+        label = []
+        history = generate_mine_test_data(dimension, num_mines, num_games_mine_train)  
+        batch = random.sample(history.items(), sample_states*(dimension**2))
+        
+        for k, (s,l) in batch:
+            state.append(s)
+            label.append(l)
+        states = tf.convert_to_tensor(state)
+        labels = tf.convert_to_tensor(label)
+        mine_location_network.fit(states, labels, callbacks = [model_checkpoint_callback])
+    
+    # The model weights (that are considered the best) are loaded into the model.
+    mine_location_network.load_weights(checkpoint_filepath)
+    return mine_location_network
+
 def create_q_network(dimension, num_mines, dense_size, dropout_coef):
     input_shape = (dimension, dimension, 11)
     
@@ -49,7 +122,7 @@ def create_q_network(dimension, num_mines, dense_size, dropout_coef):
                 layers.Dropout(dropout_coef),
                 layers.Dense(dense_size),
                 layers.Dropout(dropout_coef),
-                layers.Dense(dimension**2, activation = 'relu'),
+                layers.Dense(dimension**2),
                 layers.Reshape(target_shape=(dimension, dimension))
     ])
     
@@ -71,12 +144,16 @@ def q_value_update(state1_q_board, state2_q_board, reward_board, learning_param)
     update_q_board = np.zeros(state1_q_board.shape)    
     q_new = reward_board + gamma * np.amax(state2_q_board)
     update_q_board = state1_q_board + learning_param * (q_new - state1_q_board)
+    # print("State 1 Original Q:", state1_q_board)
+    # print("State 2 Original Q:", state2_q_board)
+    # print("State 1 Updated Q:", update_q_board)
     return update_q_board
 
 def get_greedy_next_action(q_board, board, epsilon):
     """
     The zipping on list_of_locs might need to be changed when flag functionality is added?
     """
+    action_is_flag = False
     next_action_loc = (0,0)
         
     # Get list of all available spots
@@ -89,24 +166,45 @@ def get_greedy_next_action(q_board, board, epsilon):
     else:
         # q_board is a 1xdimxdim tensor, thus the need for triple indexing
         q_list = [q_board[0][x][y] for (x,y) in places]
+        # print(q_list)
         
         # Assume an epsilon greedy policy for action selection from avail locations
-        if random.random() < epsilon:
+        if random.random() >= epsilon:
             next_action_loc = places[np.argmax(q_list)]
         else:
             next_action_loc = random.choice(places)
+        # print(next_action_loc)
         
-    return next_action_loc
+    return next_action_loc, action_is_flag
 
-def generate_q_test_data(q_training_parameters, epsilon, q_network):
-    dimension, num_mines, num_games_per_training, learning_param = q_training_parameters
+def mine_prediction_network_next_action(state_t1_tensor, ref_board, mine_network_percent):
+    next_loc = (0,0)
+        
+    # Get list of all available spots
+    pred = mine_prediction_model.predict(state_t1_tensor)
+    locs = np.where(ref_board[:,:,0] == 0)
+    places = list(zip(locs[0], locs[1]))
+    if len(places) == 0:
+        pass
+    
+    else:
+        if random.random() < mine_network_percent:
+            actions = [pred[0][x][y] for (x,y) in places]
+            next_loc = places[np.argmin(actions)]
+        else:
+            next_loc = random.choice(places)
+            
+    return next_loc
+        
+def generate_q_test_data(q_training_parameters, mine_network_percent, q_network, mine_prediction_model):
     state_counter = 1
     history = {}
     history_terminals = {}
+    dimension, num_mines, num_games_per_training, learning_param, min_delta = q_training_parameters
     
-    for game_num in range(num_games_per_training):
-        if game_num in [num_games_per_training//4 -1, 2*num_games_per_training//4 -1 , 
-                        3*num_games_per_training//4-1, num_games_per_training -1]:
+    vals = [x*num_games_per_training//10 for x in range (11)]
+    for game_num in range(1,num_games_per_training+1):
+        if game_num in vals:
             print(f"Starting Training Game {game_num + 1} out of {num_games_per_training}")
         game_over = False
         ref_board = ms.make_board(dimension, num_mines)
@@ -116,7 +214,9 @@ def generate_q_test_data(q_training_parameters, epsilon, q_network):
         while not game_over:
             state_t1_tensor = tf.convert_to_tensor(np.expand_dims(state_t1, axis=0))
             state_t1_q_board = q_network.predict(state_t1_tensor)
-            next_action_loc = get_greedy_next_action(state_t1_q_board, state_t1, epsilon)
+
+            # Use the trained mine prediction network to get the next location
+            next_action_loc = mine_prediction_network_next_action(state_t1_tensor, ref_board, mine_network_percent)
             
             state_t2 = one_hot_encode_next_state(state_t1, ref_board, next_action_loc)
             state_t2_tensor = tf.convert_to_tensor(np.expand_dims(state_t2, axis=0))
@@ -143,7 +243,7 @@ def generate_q_test_data(q_training_parameters, epsilon, q_network):
     
     return history, history_terminals
 
-def train_actor_critic_networks(q_training_parameters, actor_network, critic_network):
+def train_q_network(q_training_parameters, q_network, mine_prediction_model):
 
     # checkpoint_filepath = '\model_checkpoints\checkpoint_best'
     # model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
@@ -155,21 +255,20 @@ def train_actor_critic_networks(q_training_parameters, actor_network, critic_net
 
     full_loss = []
     full_accuracy = []
-    dimension, num_mines, num_games_per_training, learning_param = q_training_parameters
-    for epsilon_counter in range(0,21):
-        epsilon = epsilon_counter * 5/100
+    dimension, num_mines, num_games_per_training, learning_param, min_delta = q_training_parameters
+    for use_mine_network_counter in range(0,21):
+        mine_network_percent = use_mine_network_counter * 5/100
         loss_plateau_reached = False
-        print("---> Chance of using actor_network: ", epsilon, " <---")
+        print("---> Chance of using mine_predictor: ", mine_network_percent, " <---")
+        # Generate training data
+        history, history_terminals = generate_q_test_data(q_training_parameters, mine_network_percent, q_network, mine_prediction_model)
         while not loss_plateau_reached:
-            plateau_callback = tf.keras.callbacks.EarlyStopping(monitor='loss', min_delta = 2e-4, patience=3)
-            
-            # Generate training data
-            history, history_terminals = generate_q_test_data(q_training_parameters, epsilon, actor_network)
+            plateau_callback = tf.keras.callbacks.EarlyStopping(monitor='loss', min_delta = min_delta, patience=3)
             
             # Sample training data to fit to network
             state = []
             label = []
-            sample_states =  int(num_games_per_training * 0.02) + 1
+            sample_states =  int(num_games_per_training * 0.3) + 1
             terminal_batch = random.sample(history_terminals.items(), sample_states)
             for k, (s,l) in terminal_batch:
                 state.append(s)
@@ -181,18 +280,18 @@ def train_actor_critic_networks(q_training_parameters, actor_network, critic_net
             states = tf.convert_to_tensor(state)
             labels = tf.convert_to_tensor(label)
             
-            output = critic_network.fit(states, labels, epochs = 5, callbacks = [plateau_callback])
+            output = q_network.fit(states, labels, epochs = 5, callbacks = [plateau_callback])
             full_loss.extend(output.history["loss"])
             full_accuracy.extend(output.history['loss'])
             
-            # If loss length is less than the number of epochs, a plateau was reached
-            # Stop training, go back to for loop and increase epsilon_chance
+            # If loss length is less than the number of training rounds, a plateau was reached
+            # Stop training, go back to for loop and increase mine_network_percent_chance
             temp_loss = output.history["loss"]
             if len(temp_loss) < 5:
                 loss_plateau_reached = True
     
     metrics = [full_loss, full_accuracy]
-    return actor_network, critic_network, metrics
+    return q_network, metrics
 
 
 def freq_dict(inputs):
@@ -268,7 +367,7 @@ def play_one_game_single_network(dimension, num_mines, q_network):
     while not game_over and state_counter < dimension**2:
         state_tensor = tf.convert_to_tensor(np.expand_dims(state, axis=0))
         state_q_board = q_network.predict(state_tensor)
-        next_action_loc = get_greedy_next_action(state_q_board, ref, epsilon = 1)
+        next_action_loc, _ = get_greedy_next_action(state_q_board, ref, epsilon = 0)
         if state_counter < dimension ** 2:
             x,y = next_action_loc
             if ref[x][y][1] == 1:
@@ -280,20 +379,51 @@ def play_one_game_single_network(dimension, num_mines, q_network):
     avg_mine_click = np.mean(mine_times)
     return avg_mine_click
 
+def play_one_game_mine_predict_network(dimension, num_mines, mine_prediction_model):
+    
+    board = ms.make_board(dimension, num_mines)
+    b_enc = np.zeros((dimension, dimension, 11))
+    count = 0
+    mine_times = []
+    
+    while count < dimension ** 2:
+        b_enc_t = tf.convert_to_tensor(np.expand_dims(b_enc, axis=0))
+        pred = mine_prediction_model.predict(b_enc_t)
+        locs = np.where(board[:,:,0] == 0)
+        places = list(zip(locs[0], locs[1]))
+        actions = [pred[0][x][y] for (x,y) in places]
+        
+        if count < dimension ** 2:
+            next_loc = places[np.argmin(actions)]
+            if board[next_loc[0]][next_loc[1]][1] == 1:
+                mine_times.append(count)
+            b_enc = one_hot_encode_next_state(b_enc, board, next_loc)
+            count += 1
+    
+    avg_mine_time = np.mean(mine_times)
+    return avg_mine_time
+
+
 if __name__ == '__main__':
     # Board Specifics
-    dimension = 5    
+    dimension = 6    
     mine_percent = 0.4
     
     # ############################
     # ## Testing Output Numbers ##
-
+    
+    # # Mine Predictor Specifics 
+    # num_games_mine_train = 20
+    # num_training_rounds = 2
+    # mine_dropout_coef = 0.44
+    # mine_dense_size = 80*(dimension**2)
+    
     # # Q Network Specifics 
     # dense_size = 80*(dimension**2)
     # dropout_coef = 0.375
     # learning_param = 0.05
     # num_games_per_q_training = 20
-    # actor_critic_training_times = 2
+    # min_delta = 1e-4
     
     # # Evaluation
     # num_games = 20
@@ -302,37 +432,42 @@ if __name__ == '__main__':
 
     #############################
     ## Actual Data Run Numbers ##
+
+    # Mine Predictor Specifics 
+    num_games_mine_train = 1000
+    num_training_rounds = 40
+    mine_dropout_coef = 0.44
+    mine_dense_size = 80*(dimension**2)
     
     # Q Network Specifics 
     dense_size = 80*(dimension**2)
     dropout_coef = 0.375
-    learning_param = 0.05
-    num_games_per_q_training = 100
-    actor_critic_training_times = 10
+    learning_param = 0.1
+    num_games_per_epsilon_level_training = 300
+    min_delta = 1e-4
     
     # Evaluation
     num_games = 1000
     #############################
     
     num_mines = int(mine_percent * (dimension**2))
-    q_training_parameters = dimension, num_mines, num_games_per_q_training, learning_param
+    mine_network_training_params = [num_games_mine_train, num_training_rounds, mine_dropout_coef, mine_dense_size]
+    q_training_parameters = dimension, num_mines, num_games_per_epsilon_level_training, learning_param, min_delta
     
     # Create base networks, and pretrain mine network
-    actor_network = create_q_network(dimension, num_mines, dense_size, dropout_coef)   
-    critic_network = create_q_network(dimension, num_mines, dense_size, dropout_coef)   
+    q_network = create_q_network(dimension, num_mines, dense_size, dropout_coef)   
+    mine_prediction_model = create_and_train_mine_predictor(dimension, num_mines, mine_network_training_params)
     
-    training_loss = []
-    training_accuracy = []
-    for training_round in range(actor_critic_training_times):
-        print("---> Starting AC Training Round", training_round, "<---")
-        actor_network, critic_network, [loss, accuracy] = \
-                        train_actor_critic_networks(q_training_parameters, actor_network, critic_network)
-        training_loss.extend(loss)
-        training_accuracy.extend(accuracy)
-        actor_network.set_weights(critic_network.get_weights())
     
-    # Play series of games to judge competence compared to random
+    # To train the q network, we use the board predictions from mine network to choose 
+        #the next location, and depending on the epsilon value, either take that move 
+        #or a random one
+        
+    q_network, [training_loss, training_accuracy] = train_q_network(q_training_parameters, q_network, mine_prediction_model)
+    
+    # Use networks to play series of games to judge competence compared to random
     avg_clicks_random = []
+    avg_clicks_mine_predict = []
     avg_clicks_q_network = []
     
     vals = [x*num_games//10 for x in range (11)]
@@ -340,42 +475,71 @@ if __name__ == '__main__':
         if x in vals:
             print(f"Starting Game: {x} out of {num_games}")
         avg_click_random = play_one_game_random_choice_baseline(dimension, num_mines)
-        avg_click_q_network = play_one_game_single_network(dimension, num_mines, actor_network)
+        avg_click_mine_predict = play_one_game_mine_predict_network(dimension, num_mines, mine_prediction_model)
+        avg_click_q_network = play_one_game_single_network(dimension, num_mines, q_network)
         
         # Data Aggregation
         avg_clicks_random.append(avg_click_random)
+        avg_clicks_mine_predict.append(avg_click_mine_predict)
         avg_clicks_q_network.append(avg_click_q_network)
         
     avg_score_random = [100*ms.optimal_play_percent(dimension, num_mines, score) for score in avg_clicks_random]
+    avg_score_mine_predict = [100*ms.optimal_play_percent(dimension, num_mines, score) for score in avg_clicks_mine_predict]
     avg_score_q_network = [100*ms.optimal_play_percent(dimension, num_mines, score) for score in avg_clicks_q_network]
     
     display_data = []
     display_data.append(avg_score_random)
+    display_data.append(avg_score_mine_predict)
     display_data.append(avg_score_q_network)
     mean_scores = [round(np.mean(score), 1) for score in display_data]
        
     # Plot the things!
     sns.violinplot(data = display_data, inner = 'quartile')
-    plt.title(f"\nTraining -> Learning Rate: {learning_param}" + 
+    # plt.hist(display_data, color=['r','b', 'g'], alpha=0.5)
+    plt.title(f"\nTraining -> Learning Rate: {learning_param} || Min_Delta for Loss Plateau: {min_delta}" + 
               f"\n Board Size: {dimension}x{dimension} || Mines: {num_mines}"
               "\n"+ "- "*20 + 
               f"\nRandom choice and trained average scores over {num_games} games" +
-              f"\nRandom Choice: {mean_scores[0]}/100 || Median: {round(np.median(avg_score_random), 1)} || StDev: {round(np.std(avg_score_random), 1)}" +
-              f"\nActorCritic: {mean_scores[1]}/100 || Median: {round(np.median(avg_score_q_network), 1)} || StDev: {round(np.std(avg_score_q_network), 1)}" 
+              f"\nRandom Choice: {mean_scores[0]}/100 || Median: {round(np.median(avg_score_random), 1)} || StDev: {round(np.std(avg_score_random), 1)}" 
+              + f"\nMine Predictor: {mean_scores[1]}/100 || Median: {round(np.median(avg_score_mine_predict), 1)} || StDev: {round(np.std(avg_score_mine_predict), 1)}"
+              + f"\nQ Learning: {mean_scores[2]}/100 || Median: {round(np.median(avg_score_q_network), 1)} || StDev: {round(np.std(avg_score_q_network), 1)}" 
               )
     
-    plt.xticks(ticks = [0,1], labels = ['Random Choice', 'Actor-Critic'])
+    # plt.legend(labels = ['Random Choice', 'Q Buffer v1'])
+    plt.xticks(ticks = [0,1,2], labels = ['Random Choice', 'Mine Predictor', 'Q Learning'])
     plt.ylabel('Game Score [Percent of Optimal Moves Made]')
+    plt.show()
+    
+    # Compare Random to Mine Predictor
+    a_out, b_out = distinct_vals_b_minus_a(avg_score_random, avg_score_mine_predict)         
+    plt.bar(a_out.keys(), a_out.values())
+    plt.bar(b_out.keys(), b_out.values())
+    plt.legend(labels = ['Random Choice', 'Mine_prediction'])
+    plt.xlabel('Game Score [Percent of Optimal Moves Made]')
+    plt.ylabel('Score Frequency')
     plt.show()
     
     # Compare Random to Q_Learning
     a_out, b_out = distinct_vals_b_minus_a(avg_score_random, avg_score_q_network)         
     plt.bar(a_out.keys(), a_out.values())
     plt.bar(b_out.keys(), b_out.values())
-    plt.legend(labels = ['Random Choice', 'Actor_Critic'])
+    plt.legend(labels = ['Random Choice', 'Q_network'])
+    plt.xlabel('Game Score [Percent of Optimal Moves Made]')
+    plt.ylabel('Score Frequency')
     plt.show()
-        
+    
+    # Compare Mine Predictor to Q-Learning
+    a_out, b_out = distinct_vals_b_minus_a(avg_score_q_network, avg_score_mine_predict)         
+    plt.bar(a_out.keys(), a_out.values())
+    plt.bar(b_out.keys(), b_out.values())
+    plt.legend(labels = ['Q_network', 'Mine_prediction'])
+    plt.xlabel('Game Score [Percent of Optimal Moves Made]')
+    plt.ylabel('Score Frequency')
+    plt.show()
+    
     # Training Loss Over Time!
     epochs = range(1, len(training_loss) + 1)
     plt.plot(epochs, training_loss, 'bo')
+    plt.xlabel('Number of Epochs')
+    plt.title('Q-Learning Model Loss over Time')
     plt.show()

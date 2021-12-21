@@ -137,7 +137,17 @@ def make_reward_board(board):
     # Reward for mine is -1, otherwise 0
     for x in range(dimension):
         for y in range(dimension):
-            reward_board[x][y] = -1 * board[x][y][1]
+            reward_board[x][y] = -1* board[x][y][1]
+    return reward_board
+
+def make_reward_board_with_pos_rewards(board):
+    reward_board = np.ones(board.shape[0:2])
+    dimension = board.shape[0]
+    # Reward for mine is -1, otherwise 1
+    # Mine's are encoded as a 1 on board, 0 for clear, so  1 - (2 * val) produces proper reward layout
+    for x in range(dimension):
+        for y in range(dimension):
+            reward_board[x][y] -= 2 * board[x][y][1]
     return reward_board
 
 def optimal_play_percent(dimension, num_mines, score):
